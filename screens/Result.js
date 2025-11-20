@@ -222,8 +222,7 @@ export default function Result({ navigation }) {
       console.log("Marks sheet heading set to:", heading || "(none)");
       Alert.alert(
         "Imported",
-        `Found ${normalizedRows.length} rows. Ready to get result.${
-          heading ? `\nHeading: ${heading}` : ""
+        `Found ${normalizedRows.length} rows. Ready to get result.${heading ? `\nHeading: ${heading}` : ""
         }`
       );
     } catch (err) {
@@ -266,13 +265,13 @@ export default function Result({ navigation }) {
         fileUri = asset.uri;
         try {
           Alert.alert("File selected", asset.name || fileUri);
-        } catch {}
+        } catch { }
       } else {
         if (res.type !== "success") return;
         fileUri = res.uri;
         try {
           Alert.alert("File selected", res.name || fileUri);
-        } catch {}
+        } catch { }
       }
 
       const b64 = await FileSystem.readAsStringAsync(fileUri, {
@@ -534,15 +533,13 @@ export default function Result({ navigation }) {
               )}...`
             );
             console.log(
-              `  Stored keys: ${rollStr}, ${digits}${
-                digits !== rollStr ? ", " + withoutLeadingZeros : ""
+              `  Stored keys: ${rollStr}, ${digits}${digits !== rollStr ? ", " + withoutLeadingZeros : ""
               }`
             );
           }
         } else if (index < 5) {
           console.log(
-            `No photo for ID: "${roll}" - link: "${r.link || ""}", photo: "${
-              r.photo || ""
+            `No photo for ID: "${roll}" - link: "${r.link || ""}", photo: "${r.photo || ""
             }", imageKey: ${imageKey}`
           );
         }
@@ -570,10 +567,9 @@ export default function Result({ navigation }) {
       setMasterPicked(true);
       Alert.alert(
         "Master Imported",
-        `Found ${rows.length} rows${
-          Object.keys(map).length
-            ? `, ${Object.keys(map).length} photos mapped`
-            : ""
+        `Found ${rows.length} rows${Object.keys(map).length
+          ? `, ${Object.keys(map).length} photos mapped`
+          : ""
         }.`
       );
     } catch (err) {
@@ -656,7 +652,7 @@ export default function Result({ navigation }) {
       if (typeof setExtractedData === "function") {
         try {
           setExtractedData([]);
-        } catch {}
+        } catch { }
       }
       const deleted = await clearAppCache(setClearingMarksCache);
       Alert.alert(
@@ -675,426 +671,168 @@ export default function Result({ navigation }) {
       return { students: [], subjectsDetected: [] };
     }
 
-    // Log the first few rows for debugging
-    console.log("First few rows:", rows.slice(0, 2));
-
-    // Remove header row if it contains column headers
-    if (
-      rows[0] &&
-      Object.values(rows[0]).some(
-        (v) =>
-          typeof v === "string" &&
-          v.toString().toLowerCase().includes("candidate")
-      )
-    ) {
-      console.log("Removing header row:", rows[0]);
-      rows = rows.slice(1);
-    }
-
-    if (rows.length === 0) {
-      console.log("No data rows after removing header");
-      return { students: [], subjectsDetected: [] };
-    }
-
-    const first = rows[0];
-    if (!first || typeof first !== "object") {
-      console.log("First row is not a valid object");
-      return { students: [], subjectsDetected: [] };
-    }
-
-    const keys = Object.keys(first);
-    console.log("Available columns:", keys);
-
-    // Log raw headers for debugging
-    console.log("Raw Excel Headers:", keys);
-
-    // Handle common Excel export patterns
-    const isEmptyHeader = keys.some((k) => k.startsWith("__empty"));
-
-    // Fixed format mapping based on known Excel structure
-    // This assumes the Excel format matches the asset file structure
-    const FIXED_COLUMN_MAPPING = {
-      candidateId: 0, // Column A: CANDIDATE ID
-      candidateName: 1, // Column B: CANDIDATE NAME
-      group: 2, // Column C: GROUP
-      phySecA: 3, // Column D: PHY SEC A
-      phyIntSecA: 4, // Column E: PHY INT SEC A
-      phy: 5, // Column F: PHY (main subject total)
-      chemSecA: 6, // Column G: CHEM SEC A
-      chemIntSecA: 7, // Column H: CHEM INT SEC A
-      chem: 8, // Column I: CHEM (main subject total)
-      mathsSecA: 9, // Column J: MATHS SEC A
-      mathsIntSecA: 10, // Column K: MATHS INT SEC A
-      maths: 11, // Column L: MATHS (main subject total)
-      total: 12, // Column M: Total
-    };
-
-    // Convert column indices to actual key names from the Excel data
-    const getColumnKey = (index) => {
-      const keyArray = Object.keys(first);
-      return keyArray[index] || null;
-    };
-
-    // Map to actual column keys using fixed format
-    const idKey = getColumnKey(FIXED_COLUMN_MAPPING.candidateId);
-    const nameKey = getColumnKey(FIXED_COLUMN_MAPPING.candidateName);
-
-    const subjectKeyMap = {
-      PHY: getColumnKey(FIXED_COLUMN_MAPPING.phy),
-      CHEM: getColumnKey(FIXED_COLUMN_MAPPING.chem),
-      MATHS: getColumnKey(FIXED_COLUMN_MAPPING.maths),
-    };
-
-    console.log("Fixed format mapping:");
-    console.log("ID Key:", idKey);
-    console.log("Name Key:", nameKey);
-    console.log("Subject mapping:", subjectKeyMap);
-
-    // Check if first row contains headers and skip it for data processing
+    // 1. Find the Header Row
+    // We look for a row that contains "candidate id" or "candidate name"
+    let headerRowIndex = -1;
     let headerRow = null;
-    if (
-      rows[0] &&
-      Object.values(rows[0]).some(
-        (v) =>
-          typeof v === "string" &&
-          (v.toString().toLowerCase().includes("candidate") ||
-            v.toString().toLowerCase().includes("phy") ||
-            v.toString().toLowerCase().includes("chem") ||
-            v.toString().toLowerCase().includes("math"))
-      )
-    ) {
-      headerRow = rows[0];
-      console.log("Found header row:", headerRow);
+
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      const row = rows[i];
+      const values = Object.values(row).map(v => String(v).toLowerCase().trim());
+      if (values.some(v => v.includes('candidate id') || v.includes('candidate name') || v.includes('roll no'))) {
+        headerRowIndex = i;
+        headerRow = row;
+        break;
+      }
     }
 
-    // 2) If still missing, use heuristics over first ~50 data rows (skip header if detected)
-    let sampleRows = rows;
-    if (headerRow) {
-      sampleRows = rows.slice(1); // Skip header row for sampling
+    if (headerRowIndex === -1) {
+      console.log("Could not find a valid header row.");
+      return { students: [], subjectsDetected: [] };
     }
-    const sample = sampleRows.slice(0, Math.min(50, sampleRows.length));
-    const keyStats = {};
-    keys.forEach((k) => {
-      const values = sample
-        .map((r) => r[k])
-        .filter((v) => v !== undefined && v !== null && v !== "");
-      const nums = values.map((v) => {
-        if (typeof v === "number") return v;
-        if (typeof v === "string") {
-          // parse cases like "71/100"
-          const part = v.includes("/") ? v.split("/")[0] : v;
-          // Handle cases where multiple numbers are present (e.g. "Physics: 85")
-          const matches = part.match(/\d+/g);
-          if (matches) {
-            const n = Number(matches[matches.length - 1]); // Take the last number
-            return isNaN(n) ? null : n;
-          }
-          const n = Number(part);
-          return isNaN(n) ? null : n;
-        }
-        return null;
-      });
-      const numVals = nums.filter((n) => n !== null);
-      const numRatio = values.length ? numVals.length / values.length : 0;
-      const avg = numVals.length
-        ? numVals.reduce((a, b) => a + b, 0) / numVals.length
-        : 0;
-      const max = numVals.length ? Math.max(...numVals) : 0;
-      const strVals = values.filter((v) => typeof v === "string");
-      const avgLen = strVals.length
-        ? strVals.reduce((a, b) => a + b.toString().length, 0) / strVals.length
-        : 0;
-      const spaceRatio = strVals.length
-        ? strVals.filter((s) => /\s/.test(s)).length / strVals.length
-        : 0;
-      keyStats[k] = { numRatio, avg, max, avgLen, spaceRatio };
+
+    console.log("Found header row at index:", headerRowIndex, headerRow);
+
+    // 2. Map Columns
+    // We need to map: CandidateID, Name, and Subjects (PHY, CHEM, MATHS, BIO)
+    // We will create a map of { NormalizedColumnName: KeyInRowObject }
+    const columnMap = {};
+    const availableKeys = Object.keys(headerRow);
+
+    availableKeys.forEach(key => {
+      const value = String(headerRow[key]).toLowerCase().trim();
+      columnMap[value] = key;
     });
 
-    // Skip the old heuristic detection since we're using fixed format mapping
-
-    // No single marksKey now; we rely on subjectKeyMap
-
-    // 2.a.1) Validate and correct subject keys: avoid ID-like columns, choose marks-like
-    const isIdLike = (k) =>
-      !!(keyStats[k] && (keyStats[k].avg > 1000 || keyStats[k].max > 1000));
-    // More strict marks-like detection to avoid picking columns like GROUP/JEE that contain small incidental numbers
-    const isMarksLike = (k) => {
-      if (!keyStats[k]) return false;
-      const { numRatio, avg, max } = keyStats[k];
-      // numeric enough, and within plausible exam marks range
-      if (!(numRatio > 0.8 && avg > 1 && avg <= 500 && max >= 10)) return false;
-
-      // Reject columns whose string values often look like labels (e.g., 'JEE - 1', 'Group A')
-      const sampleValues = sample
-        .map((r) => r[k])
-        .filter((v) => v !== undefined && v !== null && v !== "");
-      const strVals = sampleValues.filter((v) => typeof v === "string");
-      const labelKeywords = [
-        "group",
-        "jee",
-        "neet",
-        "batch",
-        "section",
-        "sec a",
-        "int sec",
-      ];
-      const labely = strVals.filter((s) =>
-        labelKeywords.some((w) => String(s).toLowerCase().includes(w))
-      );
-      if (strVals.length && labely.length / strVals.length > 0.3) return false;
-
-      return true;
-    };
-    // Skip isSubjectColumn since we're using fixed format mapping
-    const numericCandidates = keys.filter(
-      (k) => keyStats[k] && keyStats[k].numRatio > 0.8 && k !== idKey
-    );
-    const pickBestMarksColumn = () => {
-      // Prefer common placement then best stats
-      const preferredOrder = ["__empty_2", "__empty", "__empty_1"];
-      for (const p of preferredOrder) {
-        if (keys.includes(p) && isMarksLike(p)) return p;
+    // Helper to find key by partial match
+    const findKey = (keywords) => {
+      for (const [colName, key] of Object.entries(columnMap)) {
+        if (keywords.some(k => colName === k || colName.includes(k))) {
+          return key;
+        }
       }
-      const best = numericCandidates
-        .filter((k) => isMarksLike(k) && k !== idKey)
-        .sort((a, b) => keyStats[b].avg - keyStats[a].avg)[0];
-      return best || null;
+      return null;
     };
 
-    // Skip correction logic since we're using fixed format mapping
+    const idKey = findKey(['candidate id', 'roll no', 'roll number']);
+    const nameKey = findKey(['candidate name', 'student name', 'name']);
 
-    // Skip clearing logic since we're using fixed format mapping
+    // Subject Detection
+    // We look for specific subject headers. We avoid "sec a", "int sec" etc.
+    const potentialSubjects = ['PHY', 'CHEM', 'MATHS', 'BIO'];
+    const subjectKeys = {};
 
-    // Skip heading-based detection since we're using fixed format mapping
+    potentialSubjects.forEach(subj => {
+      // We want exact matches or "Subject Total" type matches, avoiding "Sec A"
+      // Iterate over all columns to find best match
+      for (const [colName, key] of Object.entries(columnMap)) {
+        const upperName = colName.toUpperCase();
+        if (upperName === subj || upperName === `${subj} TOTAL` || upperName === `${subj} MARKS`) {
+          subjectKeys[subj] = key;
+          break; // Found exact/good match
+        }
+        // Fallback: if it starts with subject name and doesn't have "sec" or "int"
+        if (upperName.startsWith(subj) && !upperName.includes('sec') && !upperName.includes('int')) {
+          subjectKeys[subj] = key;
+        }
+      }
+    });
 
-    // Skip improved detection since we're using fixed format mapping
+    console.log("Dynamic Column Mapping:");
+    console.log("ID Key:", idKey);
+    console.log("Name Key:", nameKey);
+    console.log("Subject Keys:", subjectKeys);
 
-    // Skip heuristic picks since we're using fixed format mapping
+    if (!idKey || !nameKey) {
+      console.log("Critical columns (ID or Name) missing.");
+      return { students: [], subjectsDetected: [] };
+    }
 
-    console.log(
-      "Detected columns - ID:",
-      idKey,
-      "Name:",
-      nameKey,
-      "Subjects map:",
-      subjectKeyMap
-    );
-    console.log(
-      "Keys stats for debugging:",
-      Object.keys(keyStats).map((k) => ({ key: k, ...keyStats[k] }))
-    );
-    console.log("Sample row after detection:", rows[0]);
+    const subjectsDetected = Object.keys(subjectKeys).map(s => ({ label: s, key: subjectKeys[s] }));
 
-    // subjects detected in order - using fixed format
-    const subjectsDetected = [
-      { label: "PHY", key: subjectKeyMap["PHY"] },
-      { label: "CHEM", key: subjectKeyMap["CHEM"] },
-      { label: "MATHS", key: subjectKeyMap["MATHS"] },
-    ].filter((x) => !!x.key);
-
-    console.log("Subjects detected:", subjectsDetected);
+    // 3. Extract Data
+    // Start processing from the row AFTER the header
+    const dataRows = rows.slice(headerRowIndex + 1);
 
     const parseNum = (v) => {
-      // Handle null/undefined
       if (v === null || v === undefined || v === "") return 0;
-
-      // If already a number
       if (typeof v === "number") return v;
-
-      // If string, handle various formats
       if (typeof v === "string") {
         const s = v.trim();
-        // If it contains letters and is not a fraction-like "NN/NN", treat as label -> not marks
-        const isFractionLike = /^\s*\d+\s*\/\s*\d+\s*$/.test(s);
-        const isPlainNumber = /^\s*\d+(?:\.\d+)?\s*$/.test(s);
-
-        if (!(isPlainNumber || isFractionLike)) {
-          // Avoid parsing things like "JEE - 1" as 1
-          return 0;
+        // Handle "75/100"
+        if (s.includes('/')) {
+          const parts = s.split('/');
+          const n = Number(parts[0]);
+          return isNaN(n) ? 0 : n;
         }
-
-        // Handle fraction format (e.g., "75/100")
-        if (isFractionLike) {
-          const [num] = s.split("/");
-          const parsed = Number(num.trim());
-          return isNaN(parsed) ? 0 : parsed;
-        }
-
-        // Handle plain/decimal number
-        const parsed = parseFloat(s);
-        return isNaN(parsed) ? 0 : parsed;
+        const n = Number(s);
+        return isNaN(n) ? 0 : n;
       }
-
       return 0;
     };
 
-    // Map rows to normalized objects - skip header row if detected
-    let dataRows = rows;
-    if (headerRow) {
-      dataRows = rows.slice(1); // Skip the header row
-      console.log(
-        "Skipping header row, processing",
-        dataRows.length,
-        "data rows"
-      );
-    }
+    const mapped = dataRows.map(r => {
+      try {
+        // Skip empty rows or repeated headers
+        const idVal = r[idKey];
+        if (!idVal || String(idVal).toLowerCase().includes('candidate')) return null;
 
-    const mapped = dataRows
-      .map((r) => {
-        try {
-          // Skip rows that are clearly headers
-          if (
-            Object.values(r).some(
-              (v) =>
-                typeof v === "string" &&
-                [
-                  "candidate id",
-                  "candidate name",
-                  "group",
-                  "phy",
-                  "chem",
-                  "maths",
-                  "total",
-                ].includes(v.toString().toLowerCase())
-            )
-          ) {
-            return null;
+        const subj = {};
+        let total = 0;
+        let validSubjects = 0;
+
+        subjectsDetected.forEach(s => {
+          const val = parseNum(r[s.key]);
+          if (val >= 0) { // Allow 0 marks
+            subj[s.label] = val;
+            total += val;
+            validSubjects++;
           }
+        });
 
-          // derive name with fallback if numeric slipped in
-          let nameVal = r[nameKey];
-          const isNumericLike = (v) => {
-            if (v === undefined || v === null) return false;
-            const n = Number(v);
-            return !isNaN(n) && v !== "" && /^(?:\d|\s|,)+$/.test(String(v));
-          };
-          if (!nameVal || isNumericLike(nameVal)) {
-            // prefer common alt columns for names
-            const altKeys = ["__empty", "candidate name", "name"];
-            for (const k of altKeys) {
-              if (k in r && r[k] && !isNumericLike(r[k])) {
-                nameVal = r[k];
-                break;
-              }
-            }
-          }
-          // collect subject marks with improved parsing
-          const subj = {};
-          let total = 0;
-          let validSubjects = 0;
+        // If total column exists in excel, maybe use it? 
+        // For now, let's sum the detected subjects to be safe and consistent.
 
-          // Enhanced subject processing
-          subjectsDetected.forEach((s) => {
-            let value = 0;
-
-            // Try primary key first
-            if (r[s.key] !== undefined) {
-              value = parseNum(r[s.key]);
-            }
-
-            // If no value found, try looking for alternative columns
-            if (!value) {
-              const subjectKeys = Object.keys(r).filter((k) => {
-                const kl = k.toLowerCase();
-                return (
-                  s.patterns.some((p) => p.test(kl)) ||
-                  s.aliases.some((a) => kl.includes(a.toLowerCase()))
-                );
-              });
-
-              // Try each potential column
-              for (const key of subjectKeys) {
-                const altValue = parseNum(r[key]);
-                if (altValue > 0) {
-                  value = altValue;
-                  break;
-                }
-              }
-            }
-
-            // Only include non-zero values
-            if (value > 0) {
-              subj[s.label] = value;
-              total += value;
-              validSubjects++;
-            }
-          });
-
-          return {
-            CandidateID: (r[idKey] || "").toString(),
-            Name: (nameVal || "").toString(),
-            Subjects: subj,
-            Total: total,
-            SubjectCount: validSubjects,
-            Rank: 0, // Will be assigned later
-            raw: r,
-          };
-        } catch (error) {
-          console.warn("Error processing row:", error);
-          return null;
-        }
-      })
-      .filter(Boolean); // Remove null entries
-
-    // sort: if multiple subjects detected, by Total; if only one, by that subject; tie-breaker by name
-    const sortBy = (a, b) => {
-      if (subjectsDetected.length >= 2) {
-        if (b.Total !== a.Total) return b.Total - a.Total;
-      } else if (subjectsDetected.length === 1) {
-        const s = subjectsDetected[0].label;
-        const am = a.Subjects?.[s] ?? 0;
-        const bm = b.Subjects?.[s] ?? 0;
-        if (bm !== am) return bm - am;
+        return {
+          CandidateID: String(r[idKey]).trim(),
+          Name: String(r[nameKey]).trim(),
+          Subjects: subj,
+          Total: total,
+          SubjectCount: validSubjects,
+          Rank: 0,
+          raw: r
+        };
+      } catch (e) {
+        return null;
       }
+    }).filter(Boolean);
+
+    // 4. Sort and Rank
+    const sortBy = (a, b) => {
+      if (b.Total !== a.Total) return b.Total - a.Total;
       return a.Name.localeCompare(b.Name);
     };
+
     mapped.sort(sortBy);
 
-    // Assign ranks with tie handling (dense ranking): equal scores share rank; next unique score gets next rank number
-    const getScore = (st) => {
-      if (subjectsDetected.length >= 2) return st.Total ?? 0;
-      if (subjectsDetected.length === 1) {
-        const s = subjectsDetected[0].label;
-        return st.Subjects?.[s] ?? 0;
-      }
-      return st.Total ?? 0;
-    };
-
+    // Assign Ranks (Dense Ranking)
     let currentRank = 1;
     let prevScore = null;
     for (let i = 0; i < mapped.length; i++) {
-      const score = getScore(mapped[i]);
-      if (i === 0) {
-        mapped[i].Rank = currentRank;
-      } else {
-        if (score !== prevScore) {
-          currentRank += 1;
-        }
-        mapped[i].Rank = currentRank;
+      const score = mapped[i].Total;
+      if (i > 0 && score !== prevScore) {
+        currentRank++;
       }
+      mapped[i].Rank = currentRank;
       prevScore = score;
     }
 
-    console.log(
-      "Students with ranks assigned:",
-      mapped.slice(0, 10).map((s) => ({
-        name: s.Name,
-        total: s.Total,
-        rank: s.Rank,
-        subjects: s.Subjects,
-      }))
-    );
-
     const result = mapped.slice(0, 10);
-    console.log("detectColumnsAndTop10 returning top10:", result);
-    // return top10 for image, and full mapped for preview table
-    return Array.isArray(result)
-      ? {
-          students: result,
-          allStudents: mapped,
-          subjectsDetected: subjectsDetected.map((s) => s.label),
-        }
-      : { students: [], allStudents: [], subjectsDetected: [] };
+    return {
+      students: result,
+      allStudents: mapped,
+      subjectsDetected: subjectsDetected.map(s => s.label)
+    };
   };
 
   const getResult = () => {
@@ -1113,20 +851,8 @@ export default function Result({ navigation }) {
       // Log the raw data for debugging
       console.log("Processing raw data:", rawData.slice(0, 2));
 
-      // Filter out any header-like rows from rawData
-      const cleanData = rawData.filter((row) => {
-        if (!row || typeof row !== "object") return false;
-        // Skip rows that look like headers
-        return !Object.values(row).some(
-          (v) =>
-            typeof v === "string" &&
-            v.toString().toLowerCase().includes("candidate")
-        );
-      });
-
-      console.log("Cleaned data first row:", cleanData[0]);
-
-      const topRes = detectColumnsAndTop10(cleanData);
+      // Pass rawData directly to detectColumnsAndTop10 so it can find the header row
+      const topRes = detectColumnsAndTop10(rawData);
 
       // Ensure we have a valid response structure and take only top 10
       let allStudents = topRes && topRes.students ? [...topRes.students] : [];
@@ -1270,11 +996,10 @@ export default function Result({ navigation }) {
             />
             <Text style={styles.chipText}>
               {masterPicked
-                ? `Master: Uploaded (${masterRows.length} rows${
-                    Object.keys(photoMap || {}).length
-                      ? `, ${Object.keys(photoMap).length} photos`
-                      : ""
-                  })`
+                ? `Master: Uploaded (${masterRows.length} rows${Object.keys(photoMap || {}).length
+                  ? `, ${Object.keys(photoMap).length} photos`
+                  : ""
+                })`
                 : "Master: Not uploaded"}
             </Text>
           </View>
@@ -1426,9 +1151,8 @@ export default function Result({ navigation }) {
               {top10Data.map((student, index) => (
                 <View key={index} style={styles.previewRow}>
                   <Text style={styles.previewText}>
-                    {`${index + 1}. ${student.Name || "-"} - Total: ${
-                      student.Total || 0
-                    }`}
+                    {`${index + 1}. ${student.Name || "-"} - Total: ${student.Total || 0
+                      }`}
                   </Text>
                 </View>
               ))}
