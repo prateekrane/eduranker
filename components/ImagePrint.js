@@ -50,10 +50,21 @@ export default function ImagePrint({
     // Load logo
     (async () => {
       try {
-        const asset = Asset.fromModule(require('../assets/logo.jpg'));
+        const asset = Asset.fromModule(require("../assets/logo.jpg"));
         await asset.downloadAsync();
-        const b64 = await FileSystem.readAsStringAsync(asset.localUri, { encoding: FileSystem.EncodingType.Base64 });
-        setLogoBase64(`data:image/jpeg;base64,${b64}`);
+
+        const uri = asset.localUri || asset.uri;
+        if (!uri) {
+          console.log("Logo asset has no local URI/URI");
+          return;
+        }
+
+        const b64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: "base64",
+        });
+        const dataUri = `data:image/jpeg;base64,${b64}`;
+        console.log("Logo base64 length:", dataUri.length);
+        setLogoBase64(dataUri);
       } catch (e) {
         console.log("Error loading logo:", e);
       }
@@ -388,7 +399,7 @@ export default function ImagePrint({
               <div class="flex justify-between items-center relative z-10">
                 <!-- Left Logo -->
                 <div class="w-24 h-24 bg-white rounded-2xl p-2 flex items-center justify-center shadow-lg transform -rotate-3">
-                  ${logoBase64 ? `<img src="${logoBase64}" class="w-full h-full object-contain" />` : '<span class="text-xs text-black font-bold">LOGO</span>'}
+                  <img src="https://i.ibb.co/mr02wtCX/logo.png" alt="logo" class="w-full h-full object-contain" />
                 </div>
 
                 <div class="text-center flex-1 px-8">
@@ -402,7 +413,7 @@ export default function ImagePrint({
 
                 <!-- Right Logo -->
                 <div class="w-24 h-24 bg-white rounded-2xl p-2 flex items-center justify-center shadow-lg transform rotate-3">
-                  ${logoBase64 ? `<img src="${logoBase64}" class="w-full h-full object-contain" />` : '<span class="text-xs text-black font-bold">LOGO</span>'}
+                  <img src="https://i.ibb.co/mr02wtCX/logo.png" alt="logo" class="w-full h-full object-contain" />
                 </div>
               </div>
             </div>

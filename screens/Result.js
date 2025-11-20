@@ -818,16 +818,9 @@ export default function Result({ navigation }) {
 
     mapped.sort(sortBy);
 
-    // Assign Ranks (Dense Ranking)
-    let currentRank = 1;
-    let prevScore = null;
+    // Assign sequential ranks (1, 2, 3, ...) even if totals are equal
     for (let i = 0; i < mapped.length; i++) {
-      const score = mapped[i].Total;
-      if (i > 0 && score !== prevScore) {
-        currentRank++;
-      }
-      mapped[i].Rank = currentRank;
-      prevScore = score;
+      mapped[i].Rank = i + 1;
     }
 
     const result = mapped.slice(0, 10);
@@ -898,16 +891,9 @@ export default function Result({ navigation }) {
       return a.Name.localeCompare(b.Name);
     });
 
-    // Rank
-    let currentRank = 1;
-    let prevScore = null;
+    // Rank sequentially (1, 2, 3, ...) regardless of ties
     for (let i = 0; i < processed.length; i++) {
-      const score = processed[i].Total;
-      if (i > 0 && score !== prevScore) {
-        currentRank++;
-      }
-      processed[i].Rank = currentRank;
-      prevScore = score;
+      processed[i].Rank = i + 1;
     }
 
     const top10 = processed.slice(0, 10);
