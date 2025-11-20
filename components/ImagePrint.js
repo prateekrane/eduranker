@@ -20,6 +20,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import * as FileSystem from "expo-file-system/legacy";
 
+import { Asset } from "expo-asset";
+
 export default function ImagePrint({
   route,
   navigation,
@@ -42,6 +44,21 @@ export default function ImagePrint({
   const [capturedUri, setCapturedUri] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [isGenerating, setIsGenerating] = useState(true);
+  const [logoBase64, setLogoBase64] = useState(null);
+
+  useEffect(() => {
+    // Load logo
+    (async () => {
+      try {
+        const asset = Asset.fromModule(require('../assets/logo.jpg'));
+        await asset.downloadAsync();
+        const b64 = await FileSystem.readAsStringAsync(asset.localUri, { encoding: FileSystem.EncodingType.Base64 });
+        setLogoBase64(`data:image/jpeg;base64,${b64}`);
+      } catch (e) {
+        console.log("Error loading logo:", e);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     // Reset generation when data changes
@@ -119,15 +136,38 @@ export default function ImagePrint({
 
   // Generate HTML with dynamic student data (Tailwind-based template)
   const generateHTML = () => {
-    // Fixed order of subjects as specified
+    // Use passed subjects if available, otherwise fallback to detection
     const ALLOWED_SUBJECTS = ["PHY", "CHEM", "MATHS", "BIO"];
 
-    // Get subjects that are actually present in the data
-    const presentSubjects = ALLOWED_SUBJECTS.filter((subject) =>
-      safeStudents.some(
-        (student) => student.Subjects && student.Subjects[subject] !== undefined
-      )
-    );
+    let presentSubjects = [];
+    if (subjectsDetected && subjectsDetected.length > 0) {
+      // Filter to ensure we only use valid allowed subjects
+      presentSubjects = subjectsDetected.filter(s => ALLOWED_SUBJECTS.includes(s));
+    } else {
+      // Fallback: Get subjects that are actually present in the data
+      presentSubjects = ALLOWED_SUBJECTS.filter((subject) =>
+        safeStudents.some(
+          (student) => student.Subjects && student.Subjects[subject] !== undefined
+        )
+      );
+    }
+
+    // Determine Title
+    let title = "TOPPERS LIST";
+    const s = presentSubjects;
+    const has = (sub) => s.includes(sub);
+
+    if (s.length === 3 && has('PHY') && has('CHEM') && has('MATHS')) title = "PCM TOPPERS";
+    else if (s.length === 3 && has('PHY') && has('CHEM') && has('BIO')) title = "PCB TOPPERS";
+    else if (s.length === 4) title = "PCMB TOPPERS";
+    else if (s.length === 1) {
+      if (has('PHY')) title = "PHYSICS TOPPERS";
+      else if (has('CHEM')) title = "CHEMISTRY TOPPERS";
+      else if (has('MATHS')) title = "MATHS TOPPERS";
+      else if (has('BIO')) title = "BIOLOGY TOPPERS";
+    } else if (s.length > 0) {
+      title = s.join(' + ') + " TOPPERS";
+    }
 
     // Prepare students data (already sorted and ranked in Result.js)
     const studentsData = safeStudents.map((student, index) => {
@@ -188,20 +228,10 @@ export default function ImagePrint({
         }
       }
 
-      if (photo) {
-        console.log(
-          `Student ${student.Name} (ID: ${id}) - Photo URL: ${photo.substring(
-            0,
-            100
-          )}...`
-        );
-      } else {
-        console.log(`Student ${student.Name} (ID: ${id}) - No photo found`);
-        console.log(
-          `Available photo map keys: ${Object.keys(photoMap || {})
-            .slice(0, 10)
-            .join(", ")}`
-        );
+      // Fallback to placeholder if no photo found
+      if (!photo) {
+        // Use a generic placeholder or just null to show initials/icon
+        photo = null;
       }
 
       return {
@@ -212,9 +242,9 @@ export default function ImagePrint({
         Total:
           presentSubjects.length >= 2
             ? presentSubjects.reduce(
-                (sum, subject) => sum + (student.Subjects?.[subject] || 0),
-                0
-              )
+              (sum, subject) => sum + (student.Subjects?.[subject] || 0),
+              0
+            )
             : undefined,
         photo,
       };
@@ -230,265 +260,166 @@ export default function ImagePrint({
       });
     }
 
-    // Generate initials for placeholder images
-    const initials = (name) => {
-      if (!name || name === "-") return "NA";
-      const parts = name.trim().split(/\s+/);
-      const first = parts[0]?.[0] || "";
-      const last = parts[parts.length - 1]?.[0] || "";
-      return (first + last).toUpperCase();
+    const dateStr = new Date().toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    // Helper to generate rows
+    const generateRows = () => {
+      let rows = "";
+      for (let i = 0; i < studentsData.length; i += 2) {
+        const s1 = studentsData[i];
+        const s2 = studentsData[i + 1];
+
+        const rowHtml = `
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                ${generateStudentCard(s1, i + 1)}
+                ${generateStudentCard(s2, i + 2)}
+            </div>
+            `;
+        rows += rowHtml;
+      }
+      return rows;
     };
 
-    // Build header HTML for one set with fixed column classes
-    const headerHtmlForOne = (() => {
-      const parts = [];
-      parts.push('<th class="col-photo">Photo</th>');
-      parts.push('<th class="col-rank">Rank</th>');
-      parts.push('<th class="col-name">Student Name</th>');
-      presentSubjects.forEach((subject) => {
-        parts.push(`<th class="col-subject">${subject}</th>`);
-      });
-      if (presentSubjects.length >= 2) {
-        parts.push('<th class="col-total">Total</th>');
-      }
-      return parts.join("");
-    })();
+    const generateStudentCard = (student, rank) => {
+      if (!student) return "";
+      const isEmpty = student.name === "-";
 
-    // Function to generate cells for one student
-    const generateStudentCells = (student, bgColor) => {
-      const cells = [];
-
-      // Photo cell - use proxy URL for Google Drive images
       let photoHtml = "";
-      if (student.name !== "-") {
-        if (student.photo) {
-          // Try multiple image loading strategies
-          let imgSrc = student.photo;
+      if (!isEmpty && student.photo) {
+        let imgSrc = student.photo;
+        // Google Drive handling
+        if (imgSrc.includes("drive.google.com")) {
+          const match = imgSrc.match(/id=([^&]+)/);
+          if (match && match[1]) {
+            const fileId = match[1];
+            const thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w100`;
 
-          // If it's a Google Drive URL, try different approaches
-          if (imgSrc.includes("drive.google.com")) {
-            // Extract the file ID
-            const match = imgSrc.match(/id=([^&]+)/);
-            if (match && match[1]) {
-              const fileId = match[1];
-              // Try thumbnail API (works better in WebView)
-              const thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w100`;
-              // Also prepare direct download URL as fallback
-              const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-
-              photoHtml = `
-                                <img 
-                                    src="${thumbnailUrl}" 
-                                    alt="${student.name}" 
-                                    style="width: 56px; height: 56px; border-radius: 8px; object-fit: cover;" 
-                                    onerror="this.onerror=null; this.src='${imgSrc}'; this.onerror=function(){this.style.display='none'; this.nextElementSibling.style.display='flex';}" 
-                                />
-                                <div style="display: none; width: 56px; height: 56px; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 16px; font-weight: bold; align-items: center; justify-content: center;">${student.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")
-                                  .substring(0, 2)
-                                  .toUpperCase()}</div>
-                            `;
-            } else {
-              // Fallback to original URL
-              photoHtml = `
-                                <img 
-                                    src="${imgSrc}" 
-                                    alt="${student.name}" 
-                                    style="width: 56px; height: 56px; border-radius: 8px; object-fit: cover;" 
-                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
-                                />
-                                <div style="display: none; width: 56px; height: 56px; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 16px; font-weight: bold; align-items: center; justify-content: center;">${student.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")
-                                  .substring(0, 2)
-                                  .toUpperCase()}</div>
-                            `;
-            }
-          } else {
-            // Non-Google Drive URL
+            // Try thumbnail first, fallback to direct link, then fallback to initials
             photoHtml = `
-                            <img 
-                                src="${imgSrc}" 
-                                alt="${student.name}" 
-                                style="width: 56px; height: 56px; border-radius: 8px; object-fit: cover;" 
-                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
-                            />
-                            <div style="display: none; width: 56px; height: 56px; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 16px; font-weight: bold; align-items: center; justify-content: center;">${student.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .substring(0, 2)
-                              .toUpperCase()}</div>
-                        `;
+                    <img 
+                        src="${thumbnailUrl}" 
+                        class="w-full h-full object-cover" 
+                        onerror="this.onerror=null; this.src='${imgSrc}'; this.onerror=function(){this.style.display='none'; this.nextElementSibling.style.display='flex';}" 
+                    />
+                    <div style="display: none;" class="w-full h-full items-center justify-center bg-slate-200 text-slate-400 font-bold">
+                        ${student.name !== "-" ? student.name.split(' ').map(n => n[0]).join('').substring(0, 2) : ""}
+                    </div>
+                `;
+          } else {
+            photoHtml = `<img src="${imgSrc}" class="w-full h-full object-cover" />`;
           }
         } else {
-          // No photo - show initials with gradient background
-          const initials = student.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .substring(0, 2)
-            .toUpperCase();
-          photoHtml = `<div style="width: 56px; height: 56px; border-radius: 8px; background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%); color: #999; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center;">${
-            initials || "?"
-          }</div>`;
+          // Standard image URL or Base64
+          photoHtml = `<img src="${imgSrc}" class="w-full h-full object-cover" />`;
         }
+      } else {
+        const initials = student.name !== "-" ? student.name.split(' ').map(n => n[0]).join('').substring(0, 2) : "";
+        photoHtml = `<div class="w-full h-full flex items-center justify-center bg-slate-200 text-slate-400 font-bold">${initials}</div>`;
       }
-      cells.push(
-        `<td class="${bgColor} col-photo text-center">${photoHtml}</td>`
-      );
-
-      // Rank and Name
-      cells.push(
-        `<td class="${bgColor} col-rank text-center font-bold text-black">${
-          student.rank || ""
-        }</td>`
-      );
-      cells.push(
-        `<td class="${bgColor} col-name text-left font-semibold text-black">${
-          student.name || ""
-        }</td>`
-      );
 
       // Subject marks
-      presentSubjects.forEach((subject) => {
-        cells.push(
-          `<td class="bg-sky-300 col-subject text-center font-extrabold text-black">${
-            student.Subjects[subject] !== undefined
-              ? student.Subjects[subject]
-              : ""
-          }</td>`
-        );
+      let marksHtml = "";
+      presentSubjects.forEach(sub => {
+        marksHtml += `
+                <div class="flex flex-col items-center">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase">${sub}</span>
+                    <span class="text-sm font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
+                </div>
+            `;
       });
 
-      // Total (only if 2 or more subjects)
-      if (presentSubjects.length >= 2) {
-        cells.push(
-          `<td class="bg-sky-300 col-total text-center font-extrabold text-black">${
-            student.Total !== undefined ? student.Total : ""
-          }</td>`
-        );
-      }
+      return `
+        <div class="bg-white rounded-xl p-3 flex items-center shadow-sm border border-slate-100 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full ${rank <= 3 ? 'bg-yellow-400' : 'bg-slate-300'}"></div>
+            
+            <!-- Rank -->
+            <div class="w-8 h-8 rounded-full ${rank <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-black text-sm mr-3 shrink-0">
+                ${student.rank}
+            </div>
 
-      return cells.join("");
+            <!-- Photo -->
+            <div class="w-12 h-12 rounded-full overflow-hidden bg-slate-100 shrink-0 border-2 border-white shadow-sm mr-3">
+                ${photoHtml}
+            </div>
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0 mr-2">
+                <h3 class="font-bold text-slate-800 text-sm truncate leading-tight">${student.name}</h3>
+                <p class="text-xs text-slate-500 truncate">ID: ${student.id}</p>
+            </div>
+
+            <!-- Marks -->
+            <div class="flex gap-3 shrink-0">
+                ${marksHtml}
+                ${student.Total !== undefined ? `
+                <div class="flex flex-col items-center pl-3 border-l border-slate-100">
+                    <span class="text-[10px] font-bold text-purple-600 uppercase">Total</span>
+                    <span class="text-lg font-black text-purple-700 leading-none">${student.Total}</span>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+        `;
     };
 
-    // Generate rows HTML
-    let rowsHtml = "";
-    for (let i = 0; i < studentsData.length; i += 2) {
-      const left = studentsData[i];
-      const right = studentsData[i + 1] || {
-        rank: "",
-        name: "-",
-        Subjects: {},
-      };
-      const leftColor =
-        Math.floor(i / 2) % 2 === 0 ? "bg-lime-200" : "bg-sky-200";
-      const rightColor =
-        Math.floor(i / 2) % 2 === 0 ? "bg-sky-200" : "bg-lime-200";
-
-      rowsHtml += `
-                <tr>
-                    ${generateStudentCells(left, leftColor)}
-                    ${generateStudentCells(right, rightColor)}
-                </tr>
-            `;
-    }
-
     return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Toppers List</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
-        <style>
-            html, body {
-                width: 1200px !important;
-                min-width: 1200px !important;
-                max-width: 1200px !important;
-                height: 800px !important;
-                min-height: 800px !important;
-                max-height: 800px !important;
-                overflow: hidden !important;
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-                background-color: #004d40;
-                font-family: 'Inter', sans-serif;
-            }
-            .text-shadow-heavy { text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
-            .custom-table th, .custom-table td { 
-                border: 2px solid black; 
-                padding: 8px;
-                vertical-align: middle;
-            }
-            .custom-table { 
-                border-collapse: collapse;
-                width: 1168px !important;
-                min-width: 1168px !important;
-                max-width: 1168px !important;
-                table-layout: fixed;
-            }
-            /* Fixed widths per column (tighter so two blocks fit side-by-side) */
-            .col-photo { width: 56px; text-align: center; }
-            .col-rank { width: 46px; text-align: center; font-weight: 800; }
-            .col-name { width: 150px; text-align: left; word-break: break-word; white-space: normal; }
-            .col-subject { width: 66px; text-align: center; font-weight: 800; }
-            .col-total { width: 66px; text-align: center; font-weight: 900; }
-        </style>
-    </head>
-    <body>
-        <div style="width: 1200px; height: 800px; margin: 0 auto;">
-            <header class="text-center">
-                <div class="bg-red-600 text-white font-black text-xl sm:text-2xl md:text-3xl py-3 shadow-lg text-shadow-heavy tracking-wide" style="text-align: center;">
-                    ${
-                      sheetHeading
-                        ? sheetHeading
-                            .replace(/</g, "&lt;")
-                            .replace(/>/g, "&gt;")
-                        : "TOPPER'S LIST"
-                    }
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
+            body { font-family: 'Outfit', sans-serif; }
+          </style>
+        </head>
+        <body class="bg-slate-50 p-8 flex items-center justify-center min-h-screen">
+          <div class="w-[1100px] bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 relative">
+
+            <!-- Header -->
+            <div class="bg-[#3b0a6e] p-8 text-white relative overflow-hidden">
+              <div class="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+
+              <div class="flex justify-between items-center relative z-10">
+                <!-- Left Logo -->
+                <div class="w-24 h-24 bg-white rounded-2xl p-2 flex items-center justify-center shadow-lg transform -rotate-3">
+                  ${logoBase64 ? `<img src="${logoBase64}" class="w-full h-full object-contain" />` : '<span class="text-xs text-black font-bold">LOGO</span>'}
                 </div>
-                ${
-                  sheetHeading
-                    ? ""
-                    : `<div class="bg-blue-900 py-2 shadow-md" style="text-align: center;"><h2 class="text-white font-bold text-lg sm:text-xl md:text-2xl">CLUSTER TEST</h2></div>`
-                }
-            </header>
-    
-                <div style="width: 1168px; margin: 0 auto;">
-                    <table class="custom-table mt-1 min-w-max">
-                        <thead>
-                            <tr class="bg-lime-200">
-                                ${headerHtmlForOne}
-                                ${headerHtmlForOne}
-                            </tr>
-                            
-                        </thead>
-                        <tbody>
-                            ${rowsHtml}
-                        </tbody>
-                    </table>
+
+                <div class="text-center flex-1 px-8">
+                  <h1 class="text-5xl font-extrabold tracking-tight mb-2 uppercase text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-400 drop-shadow-sm">
+                    ${title}
+                  </h1>
+                  <p class="text-purple-200 text-lg font-medium tracking-widest uppercase opacity-80">
+                    ${sheetHeading || "Excellence in Education"}
+                  </p>
                 </div>
-            </main>
-    
-            <footer class="mt-1">
-                <div class="bg-teal-800 text-white font-black text-2xl sm:text-3xl md:text-4xl text-center py-4 shadow-lg tracking-wider">
-                    ALL THE BEST FOR NEXT EXAM
+
+                <!-- Right Logo -->
+                <div class="w-24 h-24 bg-white rounded-2xl p-2 flex items-center justify-center shadow-lg transform rotate-3">
+                  ${logoBase64 ? `<img src="${logoBase64}" class="w-full h-full object-contain" />` : '<span class="text-xs text-black font-bold">LOGO</span>'}
                 </div>
-            </footer>
-        </div>
-    </body>
-    </html>
-        `;
+              </div>
+            </div>
+
+            <!-- Content -->
+            <div class="p-8 bg-slate-50">
+              ${generateRows()}
+            </div>
+
+            <!-- Footer -->
+            <div class="bg-slate-900 text-white p-4 text-center">
+              <p class="text-slate-400 text-sm uppercase tracking-widest font-semibold">Result Date: ${dateStr}</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
   };
 
   // Debug: verify dynamic data arriving from navigation
@@ -551,7 +482,7 @@ export default function ImagePrint({
       generatedHtml.substring(0, 500)
     );
     return generatedHtml;
-  }, [safeStudents]);
+  }, [safeStudents, logoBase64]);
 
   return (
     <View

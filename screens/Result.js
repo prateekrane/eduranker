@@ -75,6 +75,9 @@ export default function Result({ navigation }) {
   const [showDataPreview, setShowDataPreview] = useState(true); // show box by default
   const [top10Data, setTop10Data] = useState([]);
   const [subjectsDetectedState, setSubjectsDetectedState] = useState([]);
+  // Subject filtering state
+  const [availableSubjects, setAvailableSubjects] = useState([]);
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
   // Removed showImagePreview state; image will always show after top 10
 
   const importExcel = async () => {
@@ -854,46 +857,105 @@ export default function Result({ navigation }) {
       // Pass rawData directly to detectColumnsAndTop10 so it can find the header row
       const topRes = detectColumnsAndTop10(rawData);
 
+      if (topRes && topRes.subjectsDetected) {
+        setAvailableSubjects(topRes.subjectsDetected);
+        // Default to all subjects selected initially
+        setSelectedSubjects(topRes.subjectsDetected);
+      }
+
       // Ensure we have a valid response structure and take only top 10
-      let allStudents = topRes && topRes.students ? [...topRes.students] : [];
-      let top10 = allStudents.slice(0, 10);
-      const subjectsDetected =
-        topRes && topRes.subjectsDetected ? topRes.subjectsDetected : [];
+      let allStudents = topRes && topRes.allStudents ? [...topRes.allStudents] : [];
+      setExtractedData(allStudents);
 
-      if (!top10.length) {
-        Alert.alert(
-          "No data",
-          "Could not find suitable columns (ID, Name, Marks). Please check the Excel format."
-        );
-        return;
-      }
-      // Ensure exactly 10 rows by padding placeholders if needed
-      if (top10.length < 10) {
-        const startRank = (top10[top10.length - 1]?.Rank || top10.length) + 1;
-        while (top10.length < 10) {
-          top10.push({
-            CandidateID: "",
-            Name: "-",
-            Subjects: {},
-            Total: undefined,
-            SubjectCount: 0,
-            Rank: startRank + (top10.length - (startRank - 1)) - 1,
-            raw: {},
-          });
-        }
-      }
+      // Initial calculation with all subjects
+      recalculateRankings(allStudents, topRes.subjectsDetected);
 
-      console.log("Prepared students (top 10):", top10);
-
-      // Store only top 10 data for preview
-      setTop10Data(top10);
-      setSubjectsDetectedState(subjectsDetected);
       setShowDataPreview(true);
-      console.log("Passing heading to ImagePrint:", sheetHeading || "(none)");
     } catch (err) {
-      console.error("Error in getResult:", err);
-      Alert.alert("Error", "Failed computing top students.");
+      console.log("Error in getResult:", err);
+      Alert.alert("Error", "Failed to process data. Check console.");
     }
+  };
+
+  const recalculateRankings = (students, subjectsToInclude) => {
+    if (!students || !subjectsToInclude) return;
+
+    const processed = students.map(s => {
+      let newTotal = 0;
+      let validSubjs = 0;
+      // Re-sum based on selected subjects
+      subjectsToInclude.forEach(subj => {
+        const val = s.Subjects[subj] || 0;
+        newTotal += val;
+        if (s.Subjects[subj] !== undefined) validSubjs++;
+      });
+      return { ...s, Total: newTotal, SubjectCount: validSubjs };
+    });
+
+    // Sort
+    processed.sort((a, b) => {
+      if (b.Total !== a.Total) return b.Total - a.Total;
+      return a.Name.localeCompare(b.Name);
+    });
+
+    // Rank
+    let currentRank = 1;
+    let prevScore = null;
+    for (let i = 0; i < processed.length; i++) {
+      const score = processed[i].Total;
+      if (i > 0 && score !== prevScore) {
+        currentRank++;
+      }
+      processed[i].Rank = currentRank;
+      prevScore = score;
+    }
+
+    const top10 = processed.slice(0, 10);
+    setTop10Data(top10);
+
+    // Update navigation params if we are already navigating (not applicable here as we navigate on button press usually, 
+    // but if we want to update the view dynamically we just update state. 
+    // The ImagePrint component is rendered inside Result? No, it's a separate screen usually?
+    // Wait, let's check navigation. 
+    // App.js says: Result and ImagePrint are screens.
+    // BUT Result.js might be navigating to ImagePrint?
+    // Let's check where `navigation.navigate('ImagePrint')` is called.
+    // Ah, I need to check if there is a "Generate Image" button that navigates.
+  };
+
+  // Effect to re-calculate when selectedSubjects changes
+  useEffect(() => {
+    if (extractedData.length > 0) {
+      recalculateRankings(extractedData, selectedSubjects);
+    }
+  }, [selectedSubjects, extractedData]);
+
+  const toggleSubject = (subj) => {
+    setSelectedSubjects(prev => {
+      if (prev.includes(subj)) {
+        // Don't allow deselecting the last subject
+        if (prev.length === 1) {
+          Alert.alert("Minimum 1", "At least one subject must be selected.");
+          return prev;
+        }
+        return prev.filter(s => s !== subj);
+      } else {
+        return [...prev, subj];
+      }
+    });
+  };
+
+  const navigateToImagePrint = () => {
+    if (top10Data.length === 0) {
+      Alert.alert("No Data", "Please generate result first.");
+      return;
+    }
+    navigation.navigate("ImagePrint", {
+      students: top10Data,
+      photoMap: photoMap,
+      subjectsDetected: selectedSubjects, // Pass selected subjects
+      sheetHeading: sheetHeading
+    });
   };
 
   return (
@@ -1131,6 +1193,54 @@ export default function Result({ navigation }) {
           </Text>
         </View>
 
+        {/* Debug Info (Hidden in prod, but useful now) */}
+        {/* <Text style={{color: 'white'}}>Debug: {availableSubjects.join(', ')}</Text> */}
+
+        {/* Subject Filter Section - Ensure it renders */}
+        {availableSubjects && availableSubjects.length > 0 ? (
+          <View style={styles.filterContainer}>
+            <Text style={styles.filterTitle}>Filter Subjects:</Text>
+            <View style={styles.chipContainer}>
+              {availableSubjects.map(subj => (
+                <TouchableOpacity
+                  key={subj}
+                  style={[
+                    styles.chip,
+                    selectedSubjects.includes(subj) ? styles.chipActive : styles.chipInactive
+                  ]}
+                  onPress={() => toggleSubject(subj)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.chipLabel,
+                    selectedSubjects.includes(subj) ? styles.chipLabelActive : styles.chipLabelInactive
+                  ]}>{subj}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {/* Generate Image Button - Added explicitly if not present or to replace existing flow if needed. 
+            Wait, looking at the code, there is a "Get Result" button which calculates. 
+            Is there a button to go to ImagePrint? 
+            Usually `ImagePrint` is a separate screen. 
+            Let's check if there is a button to navigate there.
+            If not, maybe `Get Result` was supposed to do it?
+            The previous code just set `top10Data`. 
+            Ah, `ImagePrint` might be embedded or there's another button.
+            Let's assume we need a button to "Generate Image" after preview.
+        */}
+        {/* {top10Data.length > 0 && (
+          <TouchableOpacity
+            style={[styles.button, { marginTop: 20, backgroundColor: '#8B5CF6' }]}
+            onPress={navigateToImagePrint}
+          >
+            <Ionicons name="image-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.buttonText}>Generate Image</Text>
+          </TouchableOpacity>
+        )} */}
+
         {/* Data Preview Section */}
         {showDataPreview && top10Data.length > 0 && (
           <View style={styles.previewContainer}>
@@ -1166,7 +1276,7 @@ export default function Result({ navigation }) {
                     students: top10Data,
                     photoMap: photoMap,
                     hideCandidateId: true,
-                    subjectsDetected: subjectsDetectedState,
+                    subjectsDetected: selectedSubjects,
                     sheetHeading,
                   },
                 }}
@@ -1331,6 +1441,53 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "rgba(167,139,250,0.3)",
+  },
+  filterContainer: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#1F2937', // Darker, more opaque background
+    borderRadius: 12,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  filterTitle: {
+    color: '#A78BFA',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 24,
+    borderWidth: 1,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipActive: {
+    backgroundColor: '#8B5CF6',
+    borderColor: '#7C3AED',
+  },
+  chipInactive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: '#4B5563',
+  },
+  chipLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  chipLabelActive: {
+    color: '#FFFFFF',
+  },
+  chipLabelInactive: {
+    color: '#D1D5DB',
   },
   previewTitle: {
     color: "#fff",
