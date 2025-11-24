@@ -44,44 +44,8 @@ export default function ImagePrint({
   const [capturedUri, setCapturedUri] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [isGenerating, setIsGenerating] = useState(true);
-  const [logoBase64, setLogoBase64] = useState(null);
-
-  useEffect(() => {
-    // Load logo
-    (async () => {
-      try {
-        const asset = Asset.fromModule(require("../assets/logo.jpg"));
-        await asset.downloadAsync();
-
-        // In production, localUri might be null if it's a bundled resource.
-        // We should check localUri first, then fall back to copying if needed, 
-        // but downloadAsync usually ensures localUri is populated for remote assets.
-        // For bundled assets, we might need to copy it to cache if readAsStringAsync fails on the resource URI.
-
-        let uri = asset.localUri || asset.uri;
-
-        if (!uri) {
-          console.log("Logo asset has no local URI/URI");
-          return;
-        }
-
-        // If it's a resource identifier (android.resource://), we might need to handle it differently
-        // But FileSystem.readAsStringAsync usually handles file:// and content://
-
-        console.log("Loading logo from:", uri);
-        const b64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: "base64",
-        });
-        const dataUri = `data:image/jpeg;base64,${b64}`;
-        console.log("Logo base64 length:", dataUri.length);
-        setLogoBase64(dataUri);
-      } catch (e) {
-        console.log("Error loading logo:", e);
-        // Fallback: if local loading fails, try to use the http URI if available (though unlikely for require)
-        // Or just leave it null
-      }
-    })();
-  }, []);
+  // Logo URL provided by user
+  const logoUrl = "https://i.ibb.co/mr02wtCX/logo.png";
 
   useEffect(() => {
     // Reset generation when data changes
@@ -437,7 +401,7 @@ export default function ImagePrint({
               <div class="flex justify-between items-center relative z-10">
                 <!-- Left Logo -->
                 <div class="w-32 h-32 bg-white rounded-3xl p-4 flex items-center justify-center shadow-lg transform -rotate-3">
-                  ${logoBase64 ? `<img src="${logoBase64}" class="w-full h-full object-contain" />` : '<span class="text-xs text-black font-bold">LOGO</span>'}
+                  <img src="${logoUrl}" class="w-full h-full object-contain" />
                 </div>
 
                 <div class="text-center flex-1 px-8">
@@ -451,7 +415,7 @@ export default function ImagePrint({
 
                 <!-- Right Logo -->
                 <div class="w-32 h-32 bg-white rounded-3xl p-4 flex items-center justify-center shadow-lg transform rotate-3">
-                  ${logoBase64 ? `<img src="${logoBase64}" class="w-full h-full object-contain" />` : '<span class="text-xs text-black font-bold">LOGO</span>'}
+                  <img src="${logoUrl}" class="w-full h-full object-contain" />
                 </div>
               </div>
             </div>
@@ -541,7 +505,7 @@ export default function ImagePrint({
       generatedHtml.substring(0, 500)
     );
     return generatedHtml;
-  }, [safeStudents, logoBase64]);
+  }, [safeStudents]);
 
   return (
     <View

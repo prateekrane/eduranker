@@ -76,7 +76,7 @@ export default function MainScreen({ navigation }) {
                 {/* Stats Section */}
                 <View style={styles.statsSection}>
                     <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>10</Text>
+                        <Text style={styles.statNumber}>15</Text>
                         <Text style={styles.statLabel}>Top Students</Text>
                     </View>
                     <View style={styles.statItem}>
