@@ -53,12 +53,22 @@ export default function ImagePrint({
         const asset = Asset.fromModule(require("../assets/logo.jpg"));
         await asset.downloadAsync();
 
-        const uri = asset.localUri || asset.uri;
+        // In production, localUri might be null if it's a bundled resource.
+        // We should check localUri first, then fall back to copying if needed, 
+        // but downloadAsync usually ensures localUri is populated for remote assets.
+        // For bundled assets, we might need to copy it to cache if readAsStringAsync fails on the resource URI.
+
+        let uri = asset.localUri || asset.uri;
+
         if (!uri) {
           console.log("Logo asset has no local URI/URI");
           return;
         }
 
+        // If it's a resource identifier (android.resource://), we might need to handle it differently
+        // But FileSystem.readAsStringAsync usually handles file:// and content://
+
+        console.log("Loading logo from:", uri);
         const b64 = await FileSystem.readAsStringAsync(uri, {
           encoding: "base64",
         });
@@ -67,6 +77,8 @@ export default function ImagePrint({
         setLogoBase64(dataUri);
       } catch (e) {
         console.log("Error loading logo:", e);
+        // Fallback: if local loading fails, try to use the http URI if available (though unlikely for require)
+        // Or just leave it null
       }
     })();
   }, []);
@@ -115,7 +127,7 @@ export default function ImagePrint({
     }
 
     try {
-      const fileUri = FileSystem.cacheDirectory + `Top10_${Date.now()}.png`;
+      const fileUri = FileSystem.cacheDirectory + `Top15_${Date.now()}.png`;
       await FileSystem.copyAsync({ from: capturedUri, to: fileUri });
       // Try direct save. On newer Android, this may work without explicit permission.
       await MediaLibrary.saveToLibraryAsync(fileUri);
@@ -129,7 +141,7 @@ export default function ImagePrint({
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(capturedUri, {
             mimeType: "image/png",
-            dialogTitle: "Save/Share Top 10 Image",
+            dialogTitle: "Save/Share Top 15 Image",
           });
           Alert.alert("Share opened", "Use the share sheet to save the image.");
         } else {
@@ -261,8 +273,8 @@ export default function ImagePrint({
       };
     });
 
-    // Fill remaining slots with empty data if needed
-    while (studentsData.length < 10) {
+    // Fill remaining slots with empty data if needed (up to 15)
+    while (studentsData.length < 15) {
       studentsData.push({
         rank: studentsData.length + 1,
         name: "-",
@@ -277,25 +289,8 @@ export default function ImagePrint({
       year: "numeric",
     });
 
-    // Helper to generate rows
-    const generateRows = () => {
-      let rows = "";
-      for (let i = 0; i < studentsData.length; i += 2) {
-        const s1 = studentsData[i];
-        const s2 = studentsData[i + 1];
-
-        const rowHtml = `
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                ${generateStudentCard(s1, i + 1)}
-                ${generateStudentCard(s2, i + 2)}
-            </div>
-            `;
-        rows += rowHtml;
-      }
-      return rows;
-    };
-
-    const generateStudentCard = (student, rank) => {
+    // Helper to generate a single student card (Horizontal Layout)
+    const generateStudentCard = (student, rank, isTopper = false) => {
       if (!student) return "";
       const isEmpty = student.name === "-";
 
@@ -307,9 +302,8 @@ export default function ImagePrint({
           const match = imgSrc.match(/id=([^&]+)/);
           if (match && match[1]) {
             const fileId = match[1];
-            const thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w100`;
+            const thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w200`;
 
-            // Try thumbnail first, fallback to direct link, then fallback to initials
             photoHtml = `
                     <img 
                         src="${thumbnailUrl}" 
@@ -324,7 +318,6 @@ export default function ImagePrint({
             photoHtml = `<img src="${imgSrc}" class="w-full h-full object-cover" />`;
           }
         } else {
-          // Standard image URL or Base64
           photoHtml = `<img src="${imgSrc}" class="w-full h-full object-cover" />`;
         }
       } else {
@@ -343,8 +336,48 @@ export default function ImagePrint({
             `;
       });
 
+      if (isTopper) {
+        // Special Horizontal Layout for Topper (Full Width)
+        return `
+            <div class="bg-gradient-to-r from-yellow-50 to-white rounded-2xl p-4 flex items-center shadow-lg border-2 border-yellow-400 relative overflow-hidden w-full mb-6">
+                <div class="absolute top-0 right-0 bg-yellow-400 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">RANK 1</div>
+                
+                <!-- Rank Circle -->
+                <div class="w-16 h-16 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center font-black text-3xl mr-6 shrink-0 border-2 border-yellow-200">
+                    1
+                </div>
+
+                <!-- Photo -->
+                <div class="w-24 h-24 rounded-full overflow-hidden bg-white border-4 border-yellow-400 shadow-md mr-6 shrink-0">
+                    ${photoHtml}
+                </div>
+
+                <!-- Info -->
+                <div class="flex-1 min-w-0 mr-6">
+                    <h3 class="font-black text-slate-900 text-3xl truncate leading-tight mb-1">${student.name}</h3>
+                    <p class="text-lg text-slate-500 font-medium">ID: ${student.id}</p>
+                </div>
+
+                <!-- Marks -->
+                <div class="flex gap-6 items-center shrink-0">
+                    <div class="flex gap-4">
+                        ${marksHtml}
+                    </div>
+                    
+                    ${student.Total !== undefined ? `
+                    <div class="flex flex-col items-center pl-6 border-l-2 border-yellow-200">
+                        <span class="text-xs font-bold text-yellow-600 uppercase tracking-wider">Total</span>
+                        <span class="text-4xl font-black text-yellow-600 leading-none">${student.Total}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+          `;
+      }
+
+      // Standard Horizontal Card for others
       return `
-        <div class="bg-white rounded-xl p-3 flex items-center shadow-sm border border-slate-100 relative overflow-hidden">
+        <div class="bg-white rounded-xl p-3 flex items-center shadow-sm border border-slate-100 relative overflow-hidden h-24">
             <div class="absolute top-0 left-0 w-1 h-full ${rank <= 3 ? 'bg-yellow-400' : 'bg-slate-300'}"></div>
             
             <!-- Rank -->
@@ -353,7 +386,7 @@ export default function ImagePrint({
             </div>
 
             <!-- Photo -->
-            <div class="w-12 h-12 rounded-full overflow-hidden bg-slate-100 shrink-0 border-2 border-white shadow-sm mr-3">
+            <div class="w-14 h-14 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-sm mr-3 shrink-0">
                 ${photoHtml}
             </div>
 
@@ -364,18 +397,23 @@ export default function ImagePrint({
             </div>
 
             <!-- Marks -->
-            <div class="flex gap-3 shrink-0">
-                ${marksHtml}
+            <div class="flex gap-3 shrink-0 items-center">
+                <div class="flex gap-2">
+                    ${marksHtml}
+                </div>
                 ${student.Total !== undefined ? `
                 <div class="flex flex-col items-center pl-3 border-l border-slate-100">
-                    <span class="text-[10px] font-bold text-purple-600 uppercase">Total</span>
-                    <span class="text-lg font-black text-purple-700 leading-none">${student.Total}</span>
+                    <span class="text-[9px] font-bold text-purple-600 uppercase">Total</span>
+                    <span class="text-xl font-black text-purple-700 leading-none">${student.Total}</span>
                 </div>
                 ` : ''}
             </div>
         </div>
-        `;
+      `;
     };
+
+    const topper = studentsData[0];
+    const rest = studentsData.slice(1, 15); // Remaining 14 students
 
     return `
       <!DOCTYPE html>
@@ -390,42 +428,52 @@ export default function ImagePrint({
           </style>
         </head>
         <body class="bg-slate-50 p-8 flex items-center justify-center min-h-screen">
-          <div class="w-[1100px] bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 relative">
+          <div class="w-[2400px] bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-200 relative">
 
             <!-- Header -->
-            <div class="bg-[#3b0a6e] p-8 text-white relative overflow-hidden">
+            <div class="bg-[#3b0a6e] p-12 text-white relative overflow-hidden">
               <div class="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
               <div class="flex justify-between items-center relative z-10">
                 <!-- Left Logo -->
-                <div class="w-24 h-24 bg-white rounded-2xl p-2 flex items-center justify-center shadow-lg transform -rotate-3">
-                  <img src="https://i.ibb.co/mr02wtCX/logo.png" alt="logo" class="w-full h-full object-contain" />
+                <div class="w-32 h-32 bg-white rounded-3xl p-4 flex items-center justify-center shadow-lg transform -rotate-3">
+                  ${logoBase64 ? `<img src="${logoBase64}" class="w-full h-full object-contain" />` : '<span class="text-xs text-black font-bold">LOGO</span>'}
                 </div>
 
                 <div class="text-center flex-1 px-8">
-                  <h1 class="text-5xl font-extrabold tracking-tight mb-2 uppercase text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-400 drop-shadow-sm">
+                  <h1 class="text-7xl font-extrabold tracking-tight mb-4 uppercase text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-400 drop-shadow-sm">
                     ${title}
                   </h1>
-                  <p class="text-purple-200 text-lg font-medium tracking-widest uppercase opacity-80">
+                  <p class="text-purple-200 text-3xl font-medium tracking-widest uppercase opacity-80">
                     ${sheetHeading || "Excellence in Education"}
                   </p>
                 </div>
 
                 <!-- Right Logo -->
-                <div class="w-24 h-24 bg-white rounded-2xl p-2 flex items-center justify-center shadow-lg transform rotate-3">
-                  <img src="https://i.ibb.co/mr02wtCX/logo.png" alt="logo" class="w-full h-full object-contain" />
+                <div class="w-32 h-32 bg-white rounded-3xl p-4 flex items-center justify-center shadow-lg transform rotate-3">
+                  ${logoBase64 ? `<img src="${logoBase64}" class="w-full h-full object-contain" />` : '<span class="text-xs text-black font-bold">LOGO</span>'}
                 </div>
               </div>
             </div>
 
             <!-- Content -->
-            <div class="p-8 bg-slate-50">
-              ${generateRows()}
+            <div class="p-12 bg-slate-50 flex flex-col h-full">
+                
+                <!-- Topper Section -->
+                <div class="w-full">
+                    ${generateStudentCard(topper, 1, true)}
+                </div>
+
+                <!-- Grid Section (2 Columns) -->
+                <div class="grid grid-cols-2 gap-x-8 gap-y-4 w-full">
+                    ${rest.map((s, i) => generateStudentCard(s, i + 2)).join('')}
+                </div>
+
             </div>
 
             <!-- Footer -->
-            <div class="bg-slate-900 text-white p-4 text-center">
-              <p class="text-slate-400 text-sm uppercase tracking-widest font-semibold">Result Date: ${dateStr}</p>
+            <div class="bg-slate-900 text-white p-6 text-center mt-auto">
+              <p class="text-slate-400 text-xl uppercase tracking-widest font-semibold">Result Date: ${dateStr}</p>
             </div>
           </div>
         </body>
@@ -505,13 +553,13 @@ export default function ImagePrint({
         backgroundColor: "#f0f0f0",
       }}
     >
-      {/* Hidden WebView for generation only */}
+      {/* Hidden WebView for generation only - HD Resolution */}
       <ViewShot
         ref={viewRef}
-        options={{ format: "png", quality: 1.0, width: 1200, height: 800 }}
+        options={{ format: "png", quality: 1.0, width: 2400, height: 1600 }}
         style={{
-          width: 1200,
-          height: 800,
+          width: 2400,
+          height: 1600,
           position: "absolute",
           left: -10000,
           top: -10000,
@@ -519,10 +567,10 @@ export default function ImagePrint({
           pointerEvents: "none",
         }}
       >
-        <View style={[styles.webViewContainer, { width: 1200, height: 800 }]}>
+        <View style={[styles.webViewContainer, { width: 2400, height: 1600 }]}>
           <WebView
             source={{ html }}
-            style={[styles.webView, { width: 1200, height: 800 }]}
+            style={[styles.webView, { width: 2400, height: 1600 }]}
             scrollEnabled={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
@@ -559,7 +607,7 @@ export default function ImagePrint({
       {isGenerating && !capturedUri ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#7C3AED" />
-          <Text style={styles.loadingText}>Generating image...</Text>
+          <Text style={styles.loadingText}>Generating HD image...</Text>
         </View>
       ) : capturedUri ? (
         <View style={styles.preview}>
@@ -591,8 +639,8 @@ const styles = StyleSheet.create({
     minWidth: 900, // Ensure minimum width for horizontal scrolling
   },
   webViewContainer: {
-    width: 1200, // Increased width to accommodate full table
-    height: 800, // Increased height for better visibility
+    width: 2400, // Increased width for HD
+    height: 1600, // Increased height for HD
     backgroundColor: "white",
     borderRadius: 8,
     shadowColor: "#000",
@@ -638,7 +686,7 @@ const styles = StyleSheet.create({
   },
   previewImage: {
     width: 1000, // Increased preview size to match capture
-    height: 667, // Maintain aspect ratio (1200:800 = 1000:667)
+    height: 667, // Maintain aspect ratio (2400:1600 = 1000:667)
     resizeMode: "contain",
     borderRadius: 8,
     borderWidth: 1,

@@ -31,5 +31,8 @@
     "react-native-webview": "13.15.0",
     "xlsx": "^0.18.5"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "eas-cli": "^16.28.0"
+  }
 }

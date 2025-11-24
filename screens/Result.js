@@ -823,7 +823,7 @@ export default function Result({ navigation }) {
       mapped[i].Rank = i + 1;
     }
 
-    const result = mapped.slice(0, 10);
+    const result = mapped.slice(0, 15);
     return {
       students: result,
       allStudents: mapped,
@@ -896,7 +896,7 @@ export default function Result({ navigation }) {
       processed[i].Rank = i + 1;
     }
 
-    const top10 = processed.slice(0, 10);
+    const top10 = processed.slice(0, 15);
     setTop10Data(top10);
 
     // Update navigation params if we are already navigating (not applicable here as we navigate on button press usually, 
@@ -933,13 +933,14 @@ export default function Result({ navigation }) {
 
   const navigateToImagePrint = () => {
     if (top10Data.length === 0) {
-      Alert.alert("No Data", "Please generate result first.");
+      Alert.alert("No Data", "Please process an Excel file first."); // Updated alert message
       return;
     }
     navigation.navigate("ImagePrint", {
-      students: top10Data,
+      students: top10Data, // This now contains top 15
       photoMap: photoMap,
-      subjectsDetected: selectedSubjects, // Pass selected subjects
+      hideCandidateId: false, // Changed from true to false
+      subjectsDetected: selectedSubjects.length > 0 ? selectedSubjects : availableSubjects, // Changed from subjectsDetected to availableSubjects for fallback
       sheetHeading: sheetHeading
     });
   };
@@ -1234,7 +1235,7 @@ export default function Result({ navigation }) {
               className="dataPreviewHeader"
               style={styles.dataPreviewHeader}
             >
-              <Text style={styles.previewTitle}>Top 10 Students Preview</Text>
+              <Text style={styles.previewTitle}>Top 15 Students Preview</Text> {/* Changed from 10 to 15 */}
               <TouchableOpacity
                 style={styles.hidePreviewBtn}
                 onPress={() => setShowDataPreview(false)}
@@ -1254,14 +1255,14 @@ export default function Result({ navigation }) {
               ))}
             </View>
 
-            {/* Always show image preview and download button after top 10 */}
+            {/* Always show image preview and download button after top 15 */} {/* Changed from 10 to 15 */}
             <View style={{ marginTop: 12, width: "100%" }}>
               <ImagePrint
                 route={{
                   params: {
                     students: top10Data,
                     photoMap: photoMap,
-                    hideCandidateId: true,
+                    hideCandidateId: false, // Changed from true to false
                     subjectsDetected: selectedSubjects,
                     sheetHeading,
                   },
