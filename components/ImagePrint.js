@@ -312,7 +312,7 @@ export default function ImagePrint({
                 </div>
 
                 <!-- Photo -->
-                <div class="w-28 h-28 rounded-full overflow-hidden bg-white border-4 border-yellow-400 shadow-md mr-6 shrink-0">
+                <div class="w-48 h-48 rounded-full overflow-hidden bg-white border-4 border-yellow-400 shadow-md mr-8 shrink-0">
                     ${photoHtml}
                 </div>
 
@@ -341,16 +341,16 @@ export default function ImagePrint({
 
       // Standard Horizontal Card for others
       return `
-        <div class="bg-white rounded-xl p-4 flex items-center shadow-sm border border-slate-100 relative overflow-hidden h-32">
+        <div class="bg-white rounded-xl p-4 flex items-center shadow-sm border border-slate-100 relative overflow-hidden h-44">
             <div class="absolute top-0 left-0 w-1 h-full ${rank <= 3 ? 'bg-yellow-400' : 'bg-slate-300'}"></div>
             
             <!-- Rank -->
-            <div class="w-12 h-12 rounded-full ${rank <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-black text-xl mr-4 shrink-0">
+            <div class="w-16 h-16 rounded-full ${rank <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-black text-2xl mr-6 shrink-0">
                 ${student.rank}
             </div>
 
             <!-- Photo -->
-            <div class="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-sm mr-4 shrink-0">
+            <div class="w-32 h-32 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-sm mr-6 shrink-0">
                 ${photoHtml}
             </div>
 
