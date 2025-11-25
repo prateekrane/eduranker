@@ -293,9 +293,9 @@ export default function ImagePrint({
       let marksHtml = "";
       presentSubjects.forEach(sub => {
         marksHtml += `
-                <div class="flex flex-col items-center">
-                    <span class="text-[10px] font-bold text-slate-500 uppercase">${sub}</span>
-                    <span class="text-sm font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
+                <div class="flex flex-col items-center justify-center text-center">
+                    <span class="text-xl font-bold text-slate-500 uppercase">${sub}</span>
+                    <span class="text-4xl font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
                 </div>
             `;
       });
@@ -303,35 +303,35 @@ export default function ImagePrint({
       if (isTopper) {
         // Special Horizontal Layout for Topper (Full Width)
         return `
-            <div class="bg-gradient-to-r from-yellow-50 to-white rounded-2xl p-4 flex items-center shadow-lg border-2 border-yellow-400 relative overflow-hidden w-full mb-6">
-                <div class="absolute top-0 right-0 bg-yellow-400 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">RANK 1</div>
+            <div class="bg-gradient-to-r from-yellow-50 to-white rounded-2xl p-6 flex items-center shadow-lg border-2 border-yellow-400 relative overflow-hidden w-full mb-6">
+                <div class="absolute top-0 right-0 bg-yellow-400 text-white text-base font-bold px-4 py-2 rounded-bl-lg">RANK 1</div>
                 
                 <!-- Rank Circle -->
-                <div class="w-16 h-16 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center font-black text-3xl mr-6 shrink-0 border-2 border-yellow-200">
+                <div class="w-20 h-20 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center font-black text-4xl mr-6 shrink-0 border-2 border-yellow-200">
                     1
                 </div>
 
                 <!-- Photo -->
-                <div class="w-24 h-24 rounded-full overflow-hidden bg-white border-4 border-yellow-400 shadow-md mr-6 shrink-0">
+                <div class="w-28 h-28 rounded-full overflow-hidden bg-white border-4 border-yellow-400 shadow-md mr-6 shrink-0">
                     ${photoHtml}
                 </div>
 
                 <!-- Info -->
-                <div class="flex-1 min-w-0 mr-6">
-                    <h3 class="font-black text-slate-900 text-3xl truncate leading-tight mb-1">${student.name}</h3>
-                    <p class="text-lg text-slate-500 font-medium">ID: ${student.id}</p>
+                <div class="flex-1 min-w-0 mr-6 flex flex-col justify-center items-center text-center">
+                    <h3 class="font-black text-slate-900 text-6xl leading-tight mb-3">${student.name}</h3>
+                    <p class="text-3xl text-slate-500 font-medium">ID: ${student.id}</p>
                 </div>
 
                 <!-- Marks -->
-                <div class="flex gap-6 items-center shrink-0">
-                    <div class="flex gap-4">
+                <div class="flex gap-8 items-center shrink-0">
+                    <div class="flex gap-6">
                         ${marksHtml}
                     </div>
                     
                     ${student.Total !== undefined ? `
-                    <div class="flex flex-col items-center pl-6 border-l-2 border-yellow-200">
-                        <span class="text-xs font-bold text-yellow-600 uppercase tracking-wider">Total</span>
-                        <span class="text-4xl font-black text-yellow-600 leading-none">${student.Total}</span>
+                    <div class="flex flex-col items-center justify-center text-center pl-8 border-l-2 border-yellow-200">
+                        <span class="text-2xl font-bold text-yellow-600 uppercase tracking-wider">Total</span>
+                        <span class="text-6xl font-black text-yellow-600 leading-none">${student.Total}</span>
                     </div>
                     ` : ''}
                 </div>
@@ -341,34 +341,34 @@ export default function ImagePrint({
 
       // Standard Horizontal Card for others
       return `
-        <div class="bg-white rounded-xl p-3 flex items-center shadow-sm border border-slate-100 relative overflow-hidden h-24">
+        <div class="bg-white rounded-xl p-4 flex items-center shadow-sm border border-slate-100 relative overflow-hidden h-32">
             <div class="absolute top-0 left-0 w-1 h-full ${rank <= 3 ? 'bg-yellow-400' : 'bg-slate-300'}"></div>
             
             <!-- Rank -->
-            <div class="w-8 h-8 rounded-full ${rank <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-black text-sm mr-3 shrink-0">
+            <div class="w-12 h-12 rounded-full ${rank <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-black text-xl mr-4 shrink-0">
                 ${student.rank}
             </div>
 
             <!-- Photo -->
-            <div class="w-14 h-14 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-sm mr-3 shrink-0">
+            <div class="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-sm mr-4 shrink-0">
                 ${photoHtml}
             </div>
 
             <!-- Info -->
-            <div class="flex-1 min-w-0 mr-2">
-                <h3 class="font-bold text-slate-800 text-sm truncate leading-tight">${student.name}</h3>
-                <p class="text-xs text-slate-500 truncate">ID: ${student.id}</p>
+            <div class="flex-1 min-w-0 mr-3 flex flex-col justify-center items-center text-center">
+                <h3 class="font-bold text-slate-800 text-3xl leading-tight mb-2">${student.name}</h3>
+                <p class="text-xl text-slate-500">ID: ${student.id}</p>
             </div>
 
             <!-- Marks -->
-            <div class="flex gap-3 shrink-0 items-center">
-                <div class="flex gap-2">
+            <div class="flex gap-4 shrink-0 items-center">
+                <div class="flex gap-3">
                     ${marksHtml}
                 </div>
                 ${student.Total !== undefined ? `
-                <div class="flex flex-col items-center pl-3 border-l border-slate-100">
-                    <span class="text-[9px] font-bold text-purple-600 uppercase">Total</span>
-                    <span class="text-xl font-black text-purple-700 leading-none">${student.Total}</span>
+                <div class="flex flex-col items-center justify-center text-center pl-4 border-l border-slate-100">
+                    <span class="text-xl font-bold text-purple-600 uppercase">Total</span>
+                    <span class="text-5xl font-black text-purple-700 leading-none">${student.Total}</span>
                 </div>
                 ` : ''}
             </div>
