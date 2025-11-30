@@ -575,9 +575,17 @@ export default function ImagePrint({
                     ${generateStudentCard(topper, 1, true)}
                 </div>
 
-                <!-- Grid Section (2 Columns) -->
-                <div class="grid grid-cols-2 gap-x-8 gap-y-2 w-full">
-                    ${rest.map((s, i) => generateStudentCard(s, i + 2)).join('')}
+                <!-- Two Column Layout (Vertical) -->
+                <div class="flex gap-x-8 w-full">
+                    <!-- Left Column: Ranks 2-8 -->
+                    <div class="flex-1 flex flex-col gap-y-2">
+                        ${rest.slice(0, 7).map((s, i) => generateStudentCard(s, i + 2)).join('')}
+                    </div>
+                    
+                    <!-- Right Column: Ranks 9-15 -->
+                    <div class="flex-1 flex flex-col gap-y-2">
+                        ${rest.slice(7, 14).map((s, i) => generateStudentCard(s, i + 9)).join('')}
+                    </div>
                 </div>
 
             </div>
