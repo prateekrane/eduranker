@@ -15,6 +15,7 @@ import { WebView } from "react-native-webview";
 import ViewShot from "react-native-view-shot";
 import * as MediaLibrary from "expo-media-library";
 import * as Sharing from "expo-sharing";
+import * as Print from "expo-print";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -37,6 +38,11 @@ export default function ImagePrint({
     : [];
   const sheetHeading =
     typeof params.sheetHeading === "string" ? params.sheetHeading : "";
+  // New filter params
+  const selectedStandard = params.selectedStandard || "";
+  const selectedBatch = params.selectedBatch || "";
+  const selectedTestType = params.selectedTestType || "";
+  const testMarks = params.testMarks || "";
 
   // Safety check to ensure students is always an array
   const safeStudents = Array.isArray(students) ? students : [];
@@ -121,6 +127,80 @@ export default function ImagePrint({
     }
   };
 
+  const generatePDF = async () => {
+    if (!capturedUri) {
+      Alert.alert("Generate first", "Please wait for the image to generate first.");
+      return;
+    }
+
+    try {
+      console.log("Generating PDF from captured image...");
+
+      // Read the image file as base64
+      const base64Image = await FileSystem.readAsStringAsync(capturedUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Create HTML with embedded image for PDF - properly sized for 4K
+      const pdfHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              @page {
+                margin: 0;
+                size: 3600px 2400px;
+              }
+              * {
+                margin: 0;
+                padding: 0;
+              }
+              html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+              }
+              img {
+                width: 100%;
+                height: 100%;
+                display: block;
+              }
+            </style>
+          </head>
+          <body>
+            <img src="data:image/png;base64,${base64Image}" />
+          </body>
+        </html>
+      `;
+
+      // Generate PDF with the embedded image
+      const { uri } = await Print.printToFileAsync({
+        html: pdfHtml,
+        width: 3600,
+        height: 2400,
+      });
+
+      console.log("PDF generated at:", uri);
+
+      // Share the PDF
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Save/Share Top 15 PDF",
+          UTI: "com.adobe.pdf",
+        });
+        Alert.alert("PDF Ready", "Use the share sheet to save or share the PDF.");
+      } else {
+        Alert.alert("PDF Generated", `PDF saved at: ${uri}`);
+      }
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      Alert.alert("Error", "Failed to generate PDF. Please try again.");
+    }
+  };
+
   // Generate HTML with dynamic student data (Tailwind-based template)
   const generateHTML = () => {
     // Use passed subjects if available, otherwise fallback to detection
@@ -144,16 +224,83 @@ export default function ImagePrint({
     const s = presentSubjects;
     const has = (sub) => s.includes(sub);
 
-    if (s.length === 3 && has('PHY') && has('CHEM') && has('MATHS')) title = "PCM TOPPERS";
-    else if (s.length === 3 && has('PHY') && has('CHEM') && has('BIO')) title = "PCB TOPPERS";
-    else if (s.length === 4) title = "PCMB TOPPERS";
-    else if (s.length === 1) {
-      if (has('PHY')) title = "PHYSICS TOPPERS";
-      else if (has('CHEM')) title = "CHEMISTRY TOPPERS";
-      else if (has('MATHS')) title = "MATHS TOPPERS";
-      else if (has('BIO')) title = "BIOLOGY TOPPERS";
-    } else if (s.length > 0) {
-      title = s.join(' + ') + " TOPPERS";
+    // Build title with Standard prefix if provided
+    let titlePrefix = selectedStandard ? selectedStandard.toUpperCase() + " " : "";
+
+    // Add Batch to prefix if selected
+    if (selectedBatch) {
+      // Special case: NEET shows as PCB
+      if (selectedBatch === 'neet') {
+        titlePrefix += "PCB ";
+      } else {
+        titlePrefix += selectedBatch.toUpperCase() + " ";
+      }
+    }
+
+    // Determine subject part
+    let subjectPart = "";
+
+    if (selectedBatch === 'neet') {
+      // NEET: Show subjects in expanded form
+      // Example: "12TH NEET PCB PHY+CHEM+BIO TOPPERS"
+
+      // First show the combination abbreviation
+      if (s.length === 3 && has('PHY') && has('CHEM') && has('MATHS')) {
+        subjectPart = "PCM ";
+      } else if (s.length === 3 && has('PHY') && has('CHEM') && has('BIO')) {
+        subjectPart = "PCB ";
+      } else if (s.length === 4) {
+        subjectPart = "PCMB ";
+      }
+
+      // Then add expanded subject names
+      const subjectNames = {
+        'PHY': 'PHY',
+        'CHEM': 'CHEM',
+        'MATHS': 'MATHS',
+        'BIO': 'BIO'
+      };
+      const expandedSubjects = s.map(sub => subjectNames[sub] || sub).join('+');
+      subjectPart += expandedSubjects;
+    } else {
+      // JEE/CET or no batch: Show subject abbreviation only
+      // Example: "12TH JEE PCM TOPPERS"
+      if (s.length === 3 && has('PHY') && has('CHEM') && has('MATHS')) {
+        subjectPart = "PCM";
+      } else if (s.length === 3 && has('PHY') && has('CHEM') && has('BIO')) {
+        subjectPart = "PCB";
+      } else if (s.length === 4) {
+        subjectPart = "PCMB";
+      } else if (s.length === 1) {
+        if (has('PHY')) subjectPart = "PHYSICS";
+        else if (has('CHEM')) subjectPart = "CHEMISTRY";
+        else if (has('MATHS')) subjectPart = "MATHS";
+        else if (has('BIO')) subjectPart = "BIOLOGY";
+      } else if (s.length > 0) {
+        subjectPart = s.join(' + ');
+      }
+    }
+
+    // Combine everything
+    if (subjectPart) {
+      title = titlePrefix + subjectPart + " TOPPERS";
+    } else {
+      title = titlePrefix + "TOPPERS LIST";
+    }
+
+    // Build subtitle with Test Type and Total Marks
+    let subtitle = "";
+    if (selectedTestType) {
+      const testTypeFormatted = selectedTestType.charAt(0).toUpperCase() + selectedTestType.slice(1);
+      subtitle = testTypeFormatted + " Test";
+    }
+    if (testMarks) {
+      if (subtitle) subtitle += "    ";
+      subtitle += "Total Marks: " + testMarks;
+    }
+    // Fallback to sheet heading if no subtitle
+    if (!subtitle && sheetHeading) {
+      subtitle = sheetHeading;
     }
 
     // Prepare students data (already sorted and ranked in Result.js)
@@ -294,8 +441,8 @@ export default function ImagePrint({
       presentSubjects.forEach(sub => {
         marksHtml += `
                 <div class="flex flex-col items-center justify-center text-center">
-                    <span class="text-xl font-bold text-slate-500 uppercase">${sub}</span>
-                    <span class="text-4xl font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
+                    <span class="text-base font-bold text-slate-500 uppercase">${sub}</span>
+                    <span class="text-3xl font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
                 </div>
             `;
       });
@@ -303,35 +450,35 @@ export default function ImagePrint({
       if (isTopper) {
         // Special Horizontal Layout for Topper (Full Width)
         return `
-            <div class="bg-gradient-to-r from-yellow-50 to-white rounded-2xl p-6 flex items-center shadow-lg border-2 border-yellow-400 relative overflow-hidden w-full mb-6">
-                <div class="absolute top-0 right-0 bg-yellow-400 text-white text-base font-bold px-4 py-2 rounded-bl-lg">RANK 1</div>
+            <div class="bg-gradient-to-r from-yellow-50 to-white rounded-2xl p-4 flex items-center shadow-lg border-2 border-yellow-400 relative overflow-hidden w-full mb-4">
+                <div class="absolute top-0 right-0 bg-yellow-400 text-white text-sm font-bold px-3 py-1 rounded-bl-lg">RANK 1</div>
                 
                 <!-- Rank Circle -->
-                <div class="w-20 h-20 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center font-black text-4xl mr-6 shrink-0 border-2 border-yellow-200">
+                <div class="w-14 h-14 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center font-black text-3xl mr-4 shrink-0 border-2 border-yellow-200">
                     1
                 </div>
 
                 <!-- Photo -->
-                <div class="w-48 h-48 rounded-full overflow-hidden bg-white border-4 border-yellow-400 shadow-md mr-8 shrink-0">
+                <div class="w-24 h-24 rounded-full overflow-hidden bg-white border-4 border-yellow-400 shadow-md mr-6 shrink-0">
                     ${photoHtml}
                 </div>
 
                 <!-- Info -->
-                <div class="flex-1 min-w-0 mr-6 flex flex-col justify-center items-center text-center">
-                    <h3 class="font-black text-slate-900 text-6xl leading-tight mb-3">${student.name}</h3>
-                    <p class="text-3xl text-slate-500 font-medium">ID: ${student.id}</p>
+                <div class="flex-1 min-w-0 mr-4 flex flex-col justify-center items-center text-center">
+                    <h3 class="font-black text-slate-900 text-5xl leading-tight mb-1">${student.name}</h3>
+                    <p class="text-2xl text-slate-500 font-medium">ID: ${student.id}</p>
                 </div>
 
                 <!-- Marks -->
-                <div class="flex gap-8 items-center shrink-0">
-                    <div class="flex gap-6">
+                <div class="flex gap-6 items-center shrink-0">
+                    <div class="flex gap-4">
                         ${marksHtml}
                     </div>
                     
                     ${student.Total !== undefined ? `
-                    <div class="flex flex-col items-center justify-center text-center pl-8 border-l-2 border-yellow-200">
-                        <span class="text-2xl font-bold text-yellow-600 uppercase tracking-wider">Total</span>
-                        <span class="text-6xl font-black text-yellow-600 leading-none">${student.Total}</span>
+                    <div class="flex flex-col items-center justify-center text-center pl-6 border-l-2 border-yellow-200">
+                        <span class="text-lg font-bold text-yellow-600 uppercase tracking-wider">Total</span>
+                        <span class="text-4xl font-black text-yellow-600 leading-none">${student.Total}</span>
                     </div>
                     ` : ''}
                 </div>
@@ -341,34 +488,34 @@ export default function ImagePrint({
 
       // Standard Horizontal Card for others
       return `
-        <div class="bg-white rounded-xl p-4 flex items-center shadow-sm border border-slate-100 relative overflow-hidden h-44">
+        <div class="bg-white rounded-xl p-3 flex items-center shadow-sm border border-slate-100 relative overflow-hidden h-28">
             <div class="absolute top-0 left-0 w-1 h-full ${rank <= 3 ? 'bg-yellow-400' : 'bg-slate-300'}"></div>
             
             <!-- Rank -->
-            <div class="w-16 h-16 rounded-full ${rank <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-black text-2xl mr-6 shrink-0">
+            <div class="w-12 h-12 rounded-full ${rank <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-black text-xl mr-4 shrink-0">
                 ${student.rank}
             </div>
 
             <!-- Photo -->
-            <div class="w-32 h-32 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-sm mr-6 shrink-0">
+            <div class="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-sm mr-4 shrink-0">
                 ${photoHtml}
             </div>
 
             <!-- Info -->
             <div class="flex-1 min-w-0 mr-3 flex flex-col justify-center items-center text-center">
-                <h3 class="font-bold text-slate-800 text-3xl leading-tight mb-2">${student.name}</h3>
-                <p class="text-xl text-slate-500">ID: ${student.id}</p>
+                <h3 class="font-bold text-slate-800 text-3xl leading-tight mb-1">${student.name}</h3>
+                <p class="text-lg text-slate-500">ID: ${student.id}</p>
             </div>
 
             <!-- Marks -->
-            <div class="flex gap-4 shrink-0 items-center">
-                <div class="flex gap-3">
+            <div class="flex gap-3 shrink-0 items-center">
+                <div class="flex gap-2">
                     ${marksHtml}
                 </div>
                 ${student.Total !== undefined ? `
-                <div class="flex flex-col items-center justify-center text-center pl-4 border-l border-slate-100">
-                    <span class="text-xl font-bold text-purple-600 uppercase">Total</span>
-                    <span class="text-5xl font-black text-purple-700 leading-none">${student.Total}</span>
+                <div class="flex flex-col items-center justify-center text-center pl-3 border-l border-slate-100">
+                    <span class="text-lg font-bold text-purple-600 uppercase">Total</span>
+                    <span class="text-4xl font-black text-purple-700 leading-none">${student.Total}</span>
                 </div>
                 ` : ''}
             </div>
@@ -409,7 +556,7 @@ export default function ImagePrint({
                     ${title}
                   </h1>
                   <p class="text-purple-200 text-3xl font-medium tracking-widest uppercase opacity-80">
-                    ${sheetHeading || "Excellence in Education"}
+                    ${subtitle || "Excellence in Education"}
                   </p>
                 </div>
 
@@ -429,7 +576,7 @@ export default function ImagePrint({
                 </div>
 
                 <!-- Grid Section (2 Columns) -->
-                <div class="grid grid-cols-2 gap-x-8 gap-y-4 w-full">
+                <div class="grid grid-cols-2 gap-x-8 gap-y-2 w-full">
                     ${rest.map((s, i) => generateStudentCard(s, i + 2)).join('')}
                 </div>
 
@@ -578,9 +725,14 @@ export default function ImagePrint({
           <ScrollView horizontal={true} showsHorizontalScrollIndicator={true}>
             <Image source={{ uri: capturedUri }} style={styles.previewImage} />
           </ScrollView>
-          <TouchableOpacity style={styles.saveBtn} onPress={saveToGallery}>
-            <Text style={styles.btnText}>Download to Gallery</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={styles.saveBtn} onPress={saveToGallery}>
+              <Text style={styles.btnText}>Download to Gallery</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.pdfBtn} onPress={generatePDF}>
+              <Text style={styles.btnText}>Download as PDF</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : (
         <Text style={{ color: "#666", fontStyle: "italic" }}>
@@ -632,8 +784,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginRight: 12,
   },
+  buttonContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
   saveBtn: {
     backgroundColor: "#27ae60",
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 10,
+  },
+  pdfBtn: {
+    backgroundColor: "#7C3AED",
     paddingVertical: 12,
     paddingHorizontal: 22,
     borderRadius: 10,

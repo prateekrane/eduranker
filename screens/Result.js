@@ -11,6 +11,7 @@ import {
   Image,
   Modal,
   Dimensions,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
@@ -24,6 +25,7 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
 import ImagePrint from "../components/ImagePrint";
 import * as XLSX from "xlsx";
 
@@ -78,6 +80,12 @@ export default function Result({ navigation }) {
   // Subject filtering state
   const [availableSubjects, setAvailableSubjects] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
+  // New filter states
+  const [selectedStandard, setSelectedStandard] = useState("");
+  const [selectedBatch, setSelectedBatch] = useState("");
+  const [useTestType, setUseTestType] = useState(false);
+  const [selectedTestType, setSelectedTestType] = useState("");
+  const [testMarks, setTestMarks] = useState("");
   // Removed showImagePreview state; image will always show after top 10
 
   const importExcel = async () => {
@@ -1208,6 +1216,88 @@ export default function Result({ navigation }) {
           </View>
         ) : null}
 
+        {/* New Filter Section - Standard, Test Type, Marks */}
+        <View style={styles.filterContainer}>
+          {/* Standard Dropdown */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterTitle}>Standard:</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={selectedStandard}
+                onValueChange={(itemValue) => setSelectedStandard(itemValue)}
+                style={styles.picker}
+                dropdownIconColor="#A78BFA"
+              >
+                <Picker.Item label="Select Standard" value="" />
+                <Picker.Item label="11th" value="11th" />
+                <Picker.Item label="12th" value="12th" />
+                <Picker.Item label="Fighter" value="fighter" />
+              </Picker>
+            </View>
+
+            {/* Batch Dropdown */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterTitle}>Batch:</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedBatch}
+                  onValueChange={(itemValue) => setSelectedBatch(itemValue)}
+                  style={styles.picker}
+                  dropdownIconColor="#A78BFA"
+                >
+                  <Picker.Item label="Select Batch" value="" />
+                  <Picker.Item label="JEE" value="jee" />
+                  <Picker.Item label="NEET" value="neet" />
+                  <Picker.Item label="CET" value="cet" />
+                </Picker>
+              </View>
+            </View>
+          </View>
+
+          {/* Test Type Checkbox */}
+          <View style={styles.filterSection}>
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => setUseTestType(!useTestType)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, useTestType && styles.checkboxChecked]}>
+                {useTestType && <Ionicons name="checkmark" size={16} color="#fff" />}
+              </View>
+              <Text style={styles.checkboxLabel}>Filter by Test Type</Text>
+            </TouchableOpacity>
+
+            {/* Conditional Test Type Dropdown */}
+            {useTestType && (
+              <View style={[styles.pickerContainer, { marginTop: 8 }]}>
+                <Picker
+                  selectedValue={selectedTestType}
+                  onValueChange={(itemValue) => setSelectedTestType(itemValue)}
+                  style={styles.picker}
+                  dropdownIconColor="#A78BFA"
+                >
+                  <Picker.Item label="Select Test Type" value="" />
+                  <Picker.Item label="Cluster" value="cluster" />
+                  <Picker.Item label="Combination" value="combination" />
+                </Picker>
+              </View>
+            )}
+          </View>
+
+          {/* Marks Input */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterTitle}>Minimum Marks:</Text>
+            <TextInput
+              style={styles.marksInput}
+              placeholder="Enter marks threshold"
+              placeholderTextColor="#9CA3AF"
+              value={testMarks}
+              onChangeText={setTestMarks}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+
         {/* Generate Image Button - Added explicitly if not present or to replace existing flow if needed. 
             Wait, looking at the code, there is a "Get Result" button which calculates. 
             Is there a button to go to ImagePrint? 
@@ -1265,6 +1355,10 @@ export default function Result({ navigation }) {
                     hideCandidateId: false, // Changed from true to false
                     subjectsDetected: selectedSubjects,
                     sheetHeading,
+                    selectedStandard,
+                    selectedBatch,
+                    selectedTestType,
+                    testMarks,
                   },
                 }}
                 autoGenerate={true}
@@ -1571,5 +1665,56 @@ const styles = StyleSheet.create({
   totalCol: {
     width: 80,
     backgroundColor: "rgba(16,185,129,0.1)",
+  },
+
+  // New Filter Styles
+  filterSection: {
+    marginBottom: 16,
+  },
+  pickerContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+    overflow: 'hidden',
+  },
+  picker: {
+    color: '#FFFFFF',
+    backgroundColor: 'transparent',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#4B5563',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  checkboxChecked: {
+    backgroundColor: '#8B5CF6',
+    borderColor: '#7C3AED',
+  },
+  checkboxLabel: {
+    color: '#D1D5DB',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  marksInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+    color: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
   },
 });
