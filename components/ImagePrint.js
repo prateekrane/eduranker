@@ -150,7 +150,7 @@ export default function ImagePrint({
             <style>
               @page {
                 margin: 0;
-                size: 3600px 2400px;
+                size: 1200px 2400px;
               }
               * {
                 margin: 0;
@@ -178,7 +178,7 @@ export default function ImagePrint({
       // Generate PDF with the embedded image
       const { uri } = await Print.printToFileAsync({
         html: pdfHtml,
-        width: 3600,
+        width: 1200,
         height: 2400,
       });
 
@@ -241,19 +241,10 @@ export default function ImagePrint({
     let subjectPart = "";
 
     if (selectedBatch === 'neet') {
-      // NEET: Show subjects in expanded form
-      // Example: "12TH NEET PCB PHY+CHEM+BIO TOPPERS"
+      // NEET: Show subjects in expanded form only (no abbreviation since PCB already in prefix)
+      // Example: "12TH PCB PHY+CHEM+BIO TOPPERS"
 
-      // First show the combination abbreviation
-      if (s.length === 3 && has('PHY') && has('CHEM') && has('MATHS')) {
-        subjectPart = "PCM ";
-      } else if (s.length === 3 && has('PHY') && has('CHEM') && has('BIO')) {
-        subjectPart = "PCB ";
-      } else if (s.length === 4) {
-        subjectPart = "PCMB ";
-      }
-
-      // Then add expanded subject names
+      // Add expanded subject names directly
       const subjectNames = {
         'PHY': 'PHY',
         'CHEM': 'CHEM',
@@ -261,7 +252,7 @@ export default function ImagePrint({
         'BIO': 'BIO'
       };
       const expandedSubjects = s.map(sub => subjectNames[sub] || sub).join('+');
-      subjectPart += expandedSubjects;
+      subjectPart = expandedSubjects;
     } else {
       // JEE/CET or no batch: Show subject abbreviation only
       // Example: "12TH JEE PCM TOPPERS"
@@ -441,8 +432,8 @@ export default function ImagePrint({
       presentSubjects.forEach(sub => {
         marksHtml += `
                 <div class="flex flex-col items-center justify-center text-center">
-                    <span class="text-base font-bold text-slate-500 uppercase">${sub}</span>
-                    <span class="text-3xl font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
+                    <span class="${isTopper ? 'text-base' : 'text-sm'} font-bold text-slate-500 uppercase">${sub}</span>
+                    <span class="${isTopper ? 'text-3xl' : 'text-2xl'} font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
                 </div>
             `;
       });
@@ -503,8 +494,8 @@ export default function ImagePrint({
 
             <!-- Info -->
             <div class="flex-1 min-w-0 mr-3 flex flex-col justify-center items-center text-center">
-                <h3 class="font-bold text-slate-800 text-3xl leading-tight mb-1">${student.name}</h3>
-                <p class="text-lg text-slate-500">ID: ${student.id}</p>
+                <h3 class="font-bold text-slate-800 text-4xl leading-tight mb-1">${student.name}</h3>
+                <p class="text-base text-slate-500">ID: ${student.id}</p>
             </div>
 
             <!-- Marks -->
@@ -514,8 +505,8 @@ export default function ImagePrint({
                 </div>
                 ${student.Total !== undefined ? `
                 <div class="flex flex-col items-center justify-center text-center pl-3 border-l border-slate-100">
-                    <span class="text-lg font-bold text-purple-600 uppercase">Total</span>
-                    <span class="text-4xl font-black text-purple-700 leading-none">${student.Total}</span>
+                    <span class="text-sm font-bold text-purple-600 uppercase">Total</span>
+                    <span class="text-3xl font-black text-purple-700 leading-none">${student.Total}</span>
                 </div>
                 ` : ''}
             </div>
@@ -539,7 +530,7 @@ export default function ImagePrint({
           </style>
         </head>
         <body class="bg-slate-50 p-8 flex items-center justify-center min-h-screen">
-          <div class="w-[2400px] bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-200 relative">
+          <div class="w-[1200px] bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-200 relative">
 
             <!-- Header -->
             <div class="bg-[#3b0a6e] p-12 text-white relative overflow-hidden">
@@ -547,7 +538,7 @@ export default function ImagePrint({
 
               <div class="flex justify-between items-center relative z-10">
                 <!-- Left Logo -->
-                <div class="w-32 h-32 bg-white rounded-3xl p-4 flex items-center justify-center shadow-lg transform -rotate-3">
+                <div class="w-40 h-40 bg-white rounded-3xl p-4 flex items-center justify-center shadow-lg transform -rotate-3">
                   <img src="${logoUrl}" class="w-full h-full object-contain" />
                 </div>
 
@@ -561,7 +552,7 @@ export default function ImagePrint({
                 </div>
 
                 <!-- Right Logo -->
-                <div class="w-32 h-32 bg-white rounded-3xl p-4 flex items-center justify-center shadow-lg transform rotate-3">
+                <div class="w-40 h-40 bg-white rounded-3xl p-4 flex items-center justify-center shadow-lg transform rotate-3">
                   <img src="${logoUrl}" class="w-full h-full object-contain" />
                 </div>
               </div>
@@ -575,17 +566,9 @@ export default function ImagePrint({
                     ${generateStudentCard(topper, 1, true)}
                 </div>
 
-                <!-- Two Column Layout (Vertical) -->
-                <div class="flex gap-x-8 w-full">
-                    <!-- Left Column: Ranks 2-8 -->
-                    <div class="flex-1 flex flex-col gap-y-2">
-                        ${rest.slice(0, 7).map((s, i) => generateStudentCard(s, i + 2)).join('')}
-                    </div>
-                    
-                    <!-- Right Column: Ranks 9-15 -->
-                    <div class="flex-1 flex flex-col gap-y-2">
-                        ${rest.slice(7, 14).map((s, i) => generateStudentCard(s, i + 9)).join('')}
-                    </div>
+                <!-- Single Column Layout (Vertical) -->
+                <div class="flex flex-col gap-y-3 w-full">
+                    ${rest.map((s, i) => generateStudentCard(s, i + 2)).join('')}
                 </div>
 
             </div>
@@ -675,10 +658,10 @@ export default function ImagePrint({
       {/* Hidden WebView for generation only - HD Resolution */}
       <ViewShot
         ref={viewRef}
-        options={{ format: "png", quality: 1.0, width: 2400, height: 1600 }}
+        options={{ format: "png", quality: 1.0, width: 1200, height: 2400 }}
         style={{
-          width: 2400,
-          height: 1600,
+          width: 1200,
+          height: 2400,
           position: "absolute",
           left: -10000,
           top: -10000,
@@ -686,10 +669,10 @@ export default function ImagePrint({
           pointerEvents: "none",
         }}
       >
-        <View style={[styles.webViewContainer, { width: 2400, height: 1600 }]}>
+        <View style={[styles.webViewContainer, { width: 1200, height: 2400 }]}>
           <WebView
             source={{ html }}
-            style={[styles.webView, { width: 2400, height: 1600 }]}
+            style={[styles.webView, { width: 1200, height: 2400 }]}
             scrollEnabled={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
@@ -763,8 +746,8 @@ const styles = StyleSheet.create({
     minWidth: 900, // Ensure minimum width for horizontal scrolling
   },
   webViewContainer: {
-    width: 2400, // Increased width for HD
-    height: 1600, // Increased height for HD
+    width: 1200, // Increased width for HD
+    height: 2400, // Increased height for HD
     backgroundColor: "white",
     borderRadius: 8,
     shadowColor: "#000",
@@ -820,8 +803,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   previewImage: {
-    width: 1000, // Increased preview size to match capture
-    height: 667, // Maintain aspect ratio (2400:1600 = 1000:667)
+    width: 600,
+    height: 1200, // Maintain aspect ratio (1200:2400 = 1:2)
     resizeMode: "contain",
     borderRadius: 8,
     borderWidth: 1,
