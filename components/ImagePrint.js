@@ -150,7 +150,7 @@ export default function ImagePrint({
             <style>
               @page {
                 margin: 0;
-                size: 1200px 2400px;
+                size: 1600px 2400px;
               }
               * {
                 margin: 0;
@@ -178,7 +178,7 @@ export default function ImagePrint({
       // Generate PDF with the embedded image
       const { uri } = await Print.printToFileAsync({
         html: pdfHtml,
-        width: 1200,
+        width: 1600,
         height: 2400,
       });
 
@@ -432,8 +432,8 @@ export default function ImagePrint({
       presentSubjects.forEach(sub => {
         marksHtml += `
                 <div class="flex flex-col items-center justify-center text-center">
-                    <span class="${isTopper ? 'text-base' : 'text-sm'} font-bold text-slate-500 uppercase">${sub}</span>
-                    <span class="${isTopper ? 'text-3xl' : 'text-2xl'} font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
+                    <span class="${isTopper ? 'text-sm' : 'text-xs'} font-bold text-slate-500 uppercase">${sub}</span>
+                    <span class="${isTopper ? 'text-2xl' : 'text-xl'} font-bold text-slate-800">${student.Subjects[sub] || "-"}</span>
                 </div>
             `;
       });
@@ -445,7 +445,7 @@ export default function ImagePrint({
                 <div class="absolute top-0 right-0 bg-yellow-400 text-white text-sm font-bold px-3 py-1 rounded-bl-lg">RANK 1</div>
                 
                 <!-- Rank Circle -->
-                <div class="w-14 h-14 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center font-black text-3xl mr-4 shrink-0 border-2 border-yellow-200">
+                <div class="w-14 h-14 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center font-black text-2xl mr-4 shrink-0 border-2 border-yellow-200">
                     1
                 </div>
 
@@ -456,8 +456,8 @@ export default function ImagePrint({
 
                 <!-- Info -->
                 <div class="flex-1 min-w-0 mr-4 flex flex-col justify-center items-center text-center">
-                    <h3 class="font-black text-slate-900 text-5xl leading-tight mb-1">${student.name}</h3>
-                    <p class="text-2xl text-slate-500 font-medium">ID: ${student.id}</p>
+                    <h3 class="font-black text-slate-900 text-4xl leading-tight mb-1">${student.name}</h3>
+                    <p class="text-xl text-slate-500 font-medium">ID: ${student.id}</p>
                 </div>
 
                 <!-- Marks -->
@@ -469,7 +469,7 @@ export default function ImagePrint({
                     ${student.Total !== undefined ? `
                     <div class="flex flex-col items-center justify-center text-center pl-6 border-l-2 border-yellow-200">
                         <span class="text-lg font-bold text-yellow-600 uppercase tracking-wider">Total</span>
-                        <span class="text-4xl font-black text-yellow-600 leading-none">${student.Total}</span>
+                        <span class="text-3xl font-black text-yellow-600 leading-none">${student.Total}</span>
                     </div>
                     ` : ''}
                 </div>
@@ -494,8 +494,8 @@ export default function ImagePrint({
 
             <!-- Info -->
             <div class="flex-1 min-w-0 mr-3 flex flex-col justify-center items-center text-center">
-                <h3 class="font-bold text-slate-800 text-4xl leading-tight mb-1">${student.name}</h3>
-                <p class="text-base text-slate-500">ID: ${student.id}</p>
+                <h3 class="font-bold text-slate-800 text-3xl leading-tight mb-1">${student.name}</h3>
+                <p class="text-sm text-slate-500">ID: ${student.id}</p>
             </div>
 
             <!-- Marks -->
@@ -506,7 +506,7 @@ export default function ImagePrint({
                 ${student.Total !== undefined ? `
                 <div class="flex flex-col items-center justify-center text-center pl-3 border-l border-slate-100">
                     <span class="text-sm font-bold text-purple-600 uppercase">Total</span>
-                    <span class="text-3xl font-black text-purple-700 leading-none">${student.Total}</span>
+                    <span class="text-2xl font-black text-purple-700 leading-none">${student.Total}</span>
                 </div>
                 ` : ''}
             </div>
@@ -530,7 +530,7 @@ export default function ImagePrint({
           </style>
         </head>
         <body class="bg-slate-50 p-8 flex items-center justify-center min-h-screen">
-          <div class="w-[1200px] bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-200 relative">
+          <div class="w-[1600px] bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-200 relative">
 
             <!-- Header -->
             <div class="bg-[#3b0a6e] p-12 text-white relative overflow-hidden">
@@ -543,10 +543,10 @@ export default function ImagePrint({
                 </div>
 
                 <div class="text-center flex-1 px-8">
-                  <h1 class="text-7xl font-extrabold tracking-tight mb-4 uppercase text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-400 drop-shadow-sm">
+                  <h1 class="text-6xl font-extrabold tracking-tight mb-4 uppercase text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-yellow-400 drop-shadow-sm">
                     ${title}
                   </h1>
-                  <p class="text-purple-200 text-3xl font-medium tracking-widest uppercase opacity-80">
+                  <p class="text-purple-200 text-2xl font-medium tracking-widest uppercase opacity-80">
                     ${subtitle || "Excellence in Education"}
                   </p>
                 </div>
@@ -658,9 +658,9 @@ export default function ImagePrint({
       {/* Hidden WebView for generation only - HD Resolution */}
       <ViewShot
         ref={viewRef}
-        options={{ format: "png", quality: 1.0, width: 1200, height: 2400 }}
+        options={{ format: "png", quality: 1.0, width: 1600, height: 2400 }}
         style={{
-          width: 1200,
+          width: 1600,
           height: 2400,
           position: "absolute",
           left: -10000,
@@ -669,10 +669,10 @@ export default function ImagePrint({
           pointerEvents: "none",
         }}
       >
-        <View style={[styles.webViewContainer, { width: 1200, height: 2400 }]}>
+        <View style={[styles.webViewContainer, { width: 1600, height: 2400 }]}>
           <WebView
             source={{ html }}
-            style={[styles.webView, { width: 1200, height: 2400 }]}
+            style={[styles.webView, { width: 1600, height: 2400 }]}
             scrollEnabled={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
@@ -746,7 +746,7 @@ const styles = StyleSheet.create({
     minWidth: 900, // Ensure minimum width for horizontal scrolling
   },
   webViewContainer: {
-    width: 1200, // Increased width for HD
+    width: 1600, // Increased width for HD
     height: 2400, // Increased height for HD
     backgroundColor: "white",
     borderRadius: 8,
